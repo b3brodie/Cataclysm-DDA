@@ -627,6 +627,7 @@
         "pocket_type": "MAGAZINE",
         "rigid": true,
         "airtight": true,
+        "initial_charges": [ 12, 24 ],
         "ammo_restriction": { "hydrogen": 24 },
         "watertight": true
       }
@@ -700,6 +701,7 @@
         "pocket_type": "MAGAZINE",
         "rigid": true,
         "airtight": true,
+        "initial_charges": [ 12, 24 ],
         "ammo_restriction": { "nitrogen": 24 },
         "watertight": true
       }
