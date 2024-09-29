@@ -192,8 +192,10 @@ static const itype_id itype_waterproof_gunmod( "waterproof_gunmod" );
 
 static const json_character_flag json_flag_CANNIBAL( "CANNIBAL" );
 static const json_character_flag json_flag_IMMUNE_SPOIL( "IMMUNE_SPOIL" );
+static const json_character_flag json_flag_INSPECT( "INSPECT" );
 static const json_character_flag json_flag_PSYCHOPATH( "PSYCHOPATH" );
 static const json_character_flag json_flag_SAPIOVORE( "SAPIOVORE" );
+
 
 static const matec_id RAPID( "RAPID" );
 
@@ -5104,6 +5106,7 @@ static void enchantment_info_helper( const item &it,
         }
     }
     for( const enchant_cache &ench : it.get_proc_enchantments() ) {
+    debugmsg("enchantment_info_helper: procGen: %s", ench.id.str());
         // only check conditions matching the given type
         if( ench.active_conditions.first == type ) {
             // if a description is provided use that
@@ -5179,6 +5182,9 @@ void item::enchantment_info( std::vector<iteminfo> &info, const iteminfo_query *
                                string_format( _( "When <bold>wielded</bold> this item provides:" ) ) );
             enchantment_info_printer( info, always, active, inactive );
         }
+
+
+
         always.clear();
         active.clear();
         inactive.clear();
