@@ -1927,6 +1927,11 @@ void options_manager::add_options_interface()
              true
            );
 
+        add( "QUERY_QUIT", page_id, to_translation( "Query on quit" ),
+             to_translation( "If true, will query before before quitting the game." ),
+             true
+           );
+
         add( "CLOSE_ADV_INV", page_id, to_translation( "Close advanced inventory on move all" ),
              to_translation( "If true, will close the advanced inventory when the move all items command is used." ),
              false
@@ -2972,11 +2977,6 @@ void options_manager::add_options_debug()
 #else
          false
 #endif
-       );
-
-    add( "QUERY_ON_QUIT", "debug", to_translation( "Prompt when trying to quit the game" ),
-         to_translation( "If enabled, this shows a yes/no prompt before quitting the game." ),
-         true
        );
 }
 
