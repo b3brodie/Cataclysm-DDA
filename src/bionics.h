@@ -58,6 +58,9 @@ struct bionic_data {
      */
     bionic_id required_bionic;
 
+    /** When installing this bionic, it will uninstall every bionic within this set.  This process will remove unremovable bionics. */
+    std::set<bionic_id> interchangeable_bionics;
+
     /**Requirement to bionic installation - this is a crafting requirement such as soldering_standard or surface_heat*/
     requirement_id installation_requirement;
     std::vector<std::pair<bionic_id, mod_id>> src;

@@ -1,0 +1,33 @@
+[
+  {
+    "id": "cc_bio_eye_optic_1",
+    "copy-from": "bionic_general",
+    "type": "BIONIC_ITEM",
+    "name": { "str": "Artificial Eyes CBM: Correctional Replacements" },
+    "looks_like": "bio_int_enhancer",
+    "description": "An extremely basic pair of artificial eyes with roughly equal performance to the biological standard.  Primarily intended as a corrective tool, they will remove any defects or other genetic changes compared to the baseline.",
+    "price": "1 kUSD",
+    "price_postapoc": "10 USD",
+    "weight": "100 g",
+    "difficulty": 5
+  },
+  {
+    "id": "bio_eye_optic",
+    "copy-from": "bio_eye_optic",
+    "type": "BIONIC_ITEM",
+    "name": { "str": "Artificial Eyes CBM: Telescopic Eyes" },
+    "description": "An array of high-powered, auto-focusing lenses that replaces much of the material in the user's inner eye.  This fixes any vision problems and allows for an increased vision range akin to binoculars."
+  },
+  {
+    "id": "cc_bio_eye_optic_3",
+    "copy-from": "bionic_general",
+    "type": "BIONIC_ITEM",
+    "name": { "str": "Artificial Eyes CBM: Wide Spectrum Analyzers" },
+    "looks_like": "bio_int_enhancer",
+    "description": "An incredibly complicated pair of artificial eyes, containing everything from focusing lenses to infrared detectors.  With these eyes installed there will be almost no limits to your vision, even in the dark.  Finally, their increased efficiency will give a small increase to your perception.",
+    "price": "15 kUSD",
+    "price_postapoc": "250 USD",
+    "weight": "100 g",
+    "difficulty": 5
+  }
+]

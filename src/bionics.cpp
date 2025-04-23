@@ -349,6 +349,7 @@ void bionic_data::load( const JsonObject &jsobj, const std::string_view src )
     optional( jsobj, was_loaded, "included", included );
     optional( jsobj, was_loaded, "upgraded_bionic", upgraded_bionic );
     optional( jsobj, was_loaded, "required_bionic", required_bionic );
+    optional( jsobj, was_loaded, "interchangeable_bionics", interchangeable_bionics );
     optional( jsobj, was_loaded, "fuel_options", fuel_opts );
     optional( jsobj, was_loaded, "activated_on_install", activated_on_install, false );
 
@@ -556,6 +557,14 @@ void bionic_data::check_bionic_consistency()
             } else if( !bio.required_bionic.is_valid() ) {
                 debugmsg( "Bionic %s requires undefined bionic %s",
                           bio.id.c_str(), bio.required_bionic.c_str() );
+            }
+        }
+        for( bionic_id int_bio : bio.interchangeable_bionics ) {
+            if ( int_bio == bio.id ) {
+                debugmsg( "Bionic %s interchanges with itself", bio.id.c_str() );
+            } else if ( !int_bio.is_valid() ) {
+                debugmsg( "Bionic %s interchanges with undefined bionic %s",
+                    bio.id.c_str(), int_bio.c_str() );
             }
         }
         if( !item::type_is_defined( bio.itype() ) && !bio.included ) {
@@ -2757,6 +2766,14 @@ bionic_uid Character::add_bionic( const bionic_id &b, bionic_uid parent_uid,
 
     for( const bionic_id &inc_bid : b->included_bionics ) {
         add_bionic( inc_bid, bio_uid, suppress_debug );
+    }
+
+    for( const bionic_id &int_bid : b->interchangeable_bionics ) {
+        std::optional<bionic *> to_remove_bionic = find_bionic_by_type( int_bid );
+        while( to_remove_bionic.has_value() ) {
+            perform_uninstall( *( to_remove_bionic.value() ), 0, 100, 100 );
+            to_remove_bionic = find_bionic_by_type( int_bid );
+        }
     }
 
     for( const std::pair<const spell_id, int> &spell_pair : b->learned_spells ) {

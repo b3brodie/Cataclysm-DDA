@@ -1,0 +1,104 @@
+[
+    {
+      "id": "cc_bio_internal_armor_1",
+      "type": "bionic",
+      "name": { "str": "Subdermal Armor: Steel Mesh" },
+      "description": "Lying just beneath your skin is a thin mesh of steel wiring.  Reduces cut damage by 5.",
+      "occupied_bodyparts": [
+        [ "torso", 1 ],
+        [ "head", 1 ],
+        [ "arm_l", 1 ],
+        [ "arm_r", 1 ],
+        [ "leg_l", 1 ],
+        [ "leg_r", 1 ],
+        [ "foot_l", 1 ],
+        [ "foot_r", 1 ],
+        [ "hand_l", 1 ],
+        [ "hand_r", 1 ],
+        [ "mouth", 1 ]
+      ],
+      "flags": [ "BIONIC_NPC_USABLE", "BIONIC_SHOCKPROOF" ],
+      "protec": [
+        [ "torso", { "cut": 5 } ],
+        [ "head", { "cut": 5 } ],
+        [ "mouth", { "cut": 5 } ],
+        [ "arm_l", { "cut": 5 } ],
+        [ "arm_r", { "cut": 5 } ],
+        [ "leg_l", { "cut": 5 } ],
+        [ "leg_r", { "cut": 5 } ],
+        [ "foot_l", { "cut": 5 } ],
+        [ "foot_r", { "cut": 5 } ],
+        [ "hand_l", { "cut": 5 } ],
+        [ "hand_r", { "cut": 5 } ]
+      ],
+      "interchangeable_bionics": [ "bio_carbon", "cc_bio_internal_armor_3" ]
+    },
+    {
+      "id": "bio_carbon",
+      "type": "bionic",
+      "copy-from": "bio_carbon",
+      "name": { "str": "Subdermal Armor: Carbon Filament" },
+      "description": "Lying just beneath your skin is a thin armor made of carbon nanotubes.  Reduces cutting, stabbing and ballistic damage by 10.",
+      "occupied_bodyparts": [
+        [ "torso", 1 ],
+        [ "head", 1 ],
+        [ "arm_l", 1 ],
+        [ "arm_r", 1 ],
+        [ "leg_l", 1 ],
+        [ "leg_r", 1 ],
+        [ "foot_l", 1 ],
+        [ "foot_r", 1 ],
+        [ "hand_l", 1 ],
+        [ "hand_r", 1 ],
+        [ "mouth", 1 ]
+      ],
+      "protec": [
+        [ "torso", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "head", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "mouth", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "arm_l", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "arm_r", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "leg_l", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "leg_r", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "foot_l", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "foot_r", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "hand_l", { "cut": 10, "bullet": 10, "stab": 10 } ],
+        [ "hand_r", { "cut": 10, "bullet": 10, "stab": 10 } ]
+      ],
+      "interchangeable_bionics": [ "cc_bio_internal_armor_1", "cc_bio_internal_armor_3" ]
+    },
+    {
+      "id": "cc_bio_internal_armor_3",
+      "type": "bionic",
+      "name": { "str": "Subdermal Armor: Hyperweave Lattice" },
+      "description": "Lying just beneath your skin is a thin lattice made of hyperweave.  It reduces all physical damage types by 15.",
+      "occupied_bodyparts": [
+        [ "torso", 1 ],
+        [ "head", 1 ],
+        [ "arm_l", 1 ],
+        [ "arm_r", 1 ],
+        [ "leg_l", 1 ],
+        [ "leg_r", 1 ],
+        [ "foot_l", 1 ],
+        [ "foot_r", 1 ],
+        [ "hand_l", 1 ],
+        [ "hand_r", 1 ],
+        [ "mouth", 1 ]
+      ],
+      "flags": [ "BIONIC_NPC_USABLE", "BIONIC_SHOCKPROOF" ],
+      "protec": [
+        [ "torso", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "head", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "mouth", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "arm_l", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "arm_r", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "leg_l", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "leg_r", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "foot_l", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "foot_r", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "hand_l", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ],
+        [ "hand_r", { "cut": 15, "bullet": 15, "stab": 15, "bash": 15 } ]
+      ],
+      "interchangeable_bionics": [ "cc_bio_internal_armor_1", "bio_carbon" ]
+    }
+]

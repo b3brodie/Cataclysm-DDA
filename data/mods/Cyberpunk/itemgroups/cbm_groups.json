@@ -1,0 +1,54 @@
+[
+  {
+    "id": "cc_tier_1_bionics",
+    "type": "item_group",
+    "subtype": "collection",
+    "entries": [
+      { "group": "cc_tier_1_bionics_utility", "prob": 80 },
+      { "group": "cc_tier_1_bionics_structural", "prob": 50 },
+      { "group": "cc_tier_1_bionics_combat", "prob": 30 }
+    ]
+  },
+  {
+    "id": "cc_tier_1_bionics_utility",
+    "type": "item_group",
+    "subtype": "collection",
+    "entries": [
+        { "group": "cc_tier_1_bionics_power", "prob": 70 }
+    ]
+  },
+  {
+    "id": "cc_tier_1_bionics_structural",
+    "type": "item_group",
+    "subtype": "collection",
+    "entries": [
+        { "group": "cc_tier_1_bionics_external_replacements", "prob": 70 }
+    ]
+  },
+  {
+    "id": "cc_tier_1_bionics_combat",
+    "type": "item_group",
+    "subtype": "collection",
+    "entries": [
+      { "group": "cc_tier_1_bionics_armor", "prob": 70 }
+    ]
+  },
+  {
+    "id": "cc_tier_1_bionics_armor",
+    "type": "item_group",
+    "subtype": "distribution",
+    "entries": [ { "item": "cc_bio_internal_armor_1", "prob": 100 } ]
+  },
+  {
+    "id": "cc_tier_1_bionics_power",
+    "type": "item_group",
+    "subtype": "distribution",
+    "entries": [ { "item": "cc_bio_reactor_1", "prob": 100 } ]
+  },
+  {
+    "id": "cc_tier_1_bionics_external_replacements",
+    "type": "item_group",
+    "subtype": "distribution",
+    "entries": [ { "item": "cc_bio_eye_optic_1", "prob": 100 } ]
+  }
+]

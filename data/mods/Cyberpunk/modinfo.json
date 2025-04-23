@@ -1,0 +1,12 @@
+[
+  {
+    "type": "MOD_INFO",
+    "id": "cyberpunk",
+    "name": "Cyberpunk: Cataclysm",
+    "authors": [ "b3brodie" ],
+    "maintainers": [ "b3brodie" ],
+    "description": "Set in the near future, survive a world filled with undead cyborgs, flesh infested robots, and other high tech abominations.  Scavenge abandoned technology and strip your enemies for parts in order to prolong your life in a Cataclysm far more devastating than any Corpo-Gov war.",
+    "category": "content",
+    "dependencies": [ "dda" ]
+  }
+]

@@ -1,0 +1,34 @@
+[ 
+  {
+    "id": "cc_bio_internal_armor_1",
+    "copy-from": "bionic_general_npc_usable",
+    "type": "BIONIC_ITEM",
+    "name": { "str": "Subdermal Armor CBM: Steel Mesh" },
+    "looks_like": "bio_int_enhancer",
+    "description": "A thin mesh of steel wiring, implanted just beneath the skin.  It reduces cutting damage by 5.",
+    "price": "1 kUSD",
+    "price_postapoc": "10 USD",
+    "difficulty": 9
+  },
+  {
+    "id": "bio_carbon",
+    "copy-from": "bio_carbon",
+    "type": "BIONIC_ITEM",
+    "name": { "str": "Subdermal Armor CBM: Carbon Filament" },
+    "looks_like": "bio_int_enhancer",
+    "description": "Thin armor made of carbon nanotubes, implanted just beneath the skin.  It reduces cutting, stabbing and ballistic damage by 10.",
+    "price": "7 kUSD 500 USD",
+    "price_postapoc": "50 USD"
+  },
+  {
+    "id": "cc_bio_internal_armor_3",
+    "copy-from": "bionic_general_npc_usable",
+    "type": "BIONIC_ITEM",
+    "name": { "str": "Subdermal Armor CBM: Hyperweave Lattice" },
+    "looks_like": "bio_int_enhancer",
+    "description": "Thin armor made of carbon nanotubes, implanted just beneath the skin.  It reduces all physical damage types by 15.",
+    "price": "60 kUSD",
+    "price_postapoc": "500 USD",
+    "difficulty": 9
+  }
+]

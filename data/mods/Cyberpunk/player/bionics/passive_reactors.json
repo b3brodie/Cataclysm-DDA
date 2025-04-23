@@ -1,0 +1,32 @@
+[
+  {
+    "id": "cc_bio_reactor_1",
+    "type": "bionic",
+    "name": { "str": "Passive Reactor: Trickle Charger" },
+    "description": "A collection of highly radioactive materials encased in a protective sheath alongside the wiring to draw power from it.  Provides small amounts of free power over time.",
+    "occupied_bodyparts": [ [ "torso", 4 ] ],
+    "enchantments": [ { "values": [ { "value": "POWER_TRICKLE", "add": 10 } ] } ],
+    "flags": [ "BIONIC_POWER_SOURCE", "BIONIC_NPC_USABLE", "BIONIC_SHOCKPROOF" ],
+    "interchangeable_bionics": [ "cc_bio_reactor_2", "cc_bio_reactor_3" ]
+  },
+  {
+    "id": "cc_bio_reactor_2",
+    "type": "bionic",
+    "name": { "str": "Passive Reactor: Micro Fission Generator" },
+    "description": "Combines old fashioned fusion with high tech minaturization techniques, creating the most commonly found cbm inside every type of cyborg.  Provides medium amounts of free power over time.",
+    "occupied_bodyparts": [ [ "torso", 4 ] ],
+    "enchantments": [ { "values": [ { "value": "POWER_TRICKLE", "add": 100 } ] } ],
+    "flags": [ "BIONIC_POWER_SOURCE", "BIONIC_NPC_USABLE", "BIONIC_SHOCKPROOF" ],
+    "interchangeable_bionics": [ "cc_bio_reactor_1", "cc_bio_reactor_3" ]
+  },
+  {
+    "id": "cc_bio_reactor_3",
+    "type": "bionic",
+    "name": { "str": "Passive Reactor: Internal Fusion Reactor" },
+    "description": "The most advanced model of passive reactor cbms not yet on the market.  Combines cutting edge research into fusion with the ever increasing need for more energy.  Provides large amounts of free power over time.",
+    "occupied_bodyparts": [ [ "torso", 4 ] ],
+    "enchantments": [ { "values": [ { "value": "POWER_TRICKLE", "add": 1000 } ] } ],
+    "flags": [ "BIONIC_POWER_SOURCE", "BIONIC_NPC_USABLE", "BIONIC_SHOCKPROOF" ],
+    "interchangeable_bionics": [ "cc_bio_reactor_1", "cc_bio_reactor_2" ]
+  }
+]

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "cc_dissect_tier_1_bionics",
+    "type": "harvest",
+    "message": "You search for any salvageable hardware in what's left of this undead cyborg.  Much of it is just scrap metal, but some of the electronics look surprisingly intact.",
+    "entries": [
+      {
+        "drop": "cc_tier_1_bionics",
+        "type": "bionic_group",
+        "flags": [ "NO_STERILE", "NO_PACKED", "FILTHY" ],
+        "faults": [ "fault_bionic_salvaged" ],
+        "base_num": [ 0, 4 ],
+        "scale_num": [ 0.1, 0.6 ],
+        "max": 5
+      }
+    ]
+  }
+]

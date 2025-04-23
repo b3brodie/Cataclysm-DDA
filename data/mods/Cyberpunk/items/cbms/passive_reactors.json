@@ -1,0 +1,38 @@
+[
+  {
+    "id": "cc_bio_reactor_1",
+    "copy-from": "bionic_general_npc_usable",
+    "type": "BIONIC_ITEM",
+    "name": { "str": "Passive Reactor CBM: Trickle Charger" },
+    "looks_like": "bio_int_enhancer",
+    "description": "A collection of highly radioactive materials encased in a protective sheath alongside the wiring to draw power from it.  Provides small amounts of free power over time.",
+    "weight": "500 g",
+    "price": "1 kUSD",
+    "price_postapoc": "10 USD",
+    "difficulty": 3
+  },
+  {
+    "id": "cc_bio_reactor_2",
+    "copy-from": "bionic_general_npc_usable",
+    "type": "BIONIC_ITEM",
+    "name": { "str": "Passive Reactor CBM: Micro Fission Generator" },
+    "looks_like": "bio_int_enhancer",
+    "description": "Combines old fashioned fusion with high tech minaturization techniques, creating the most commonly found cbm inside every type of cyborg.  Provides medium amounts of free power over time.",
+    "weight": "500 g",
+    "price": "10 kUSD",
+    "price_postapoc": "100 USD",
+    "difficulty": 3
+  },
+  {
+    "id": "cc_bio_reactor_3",
+    "copy-from": "bionic_general_npc_usable",
+    "type": "BIONIC_ITEM",
+    "name": { "str": "Passive Reactor CBM: Internal Fusion Reactor" },
+    "looks_like": "bio_int_enhancer",
+    "description": "The most advanced model of passive reactor cbms not yet on the market.  Combines cutting edge research into fusion with the ever increasing need for more energy.  Provides large amounts of free power over time.",
+    "weight": "500 g",
+    "price": "100 kUSD",
+    "price_postapoc": "1000 USD",
+    "difficulty": 3
+  }
+]

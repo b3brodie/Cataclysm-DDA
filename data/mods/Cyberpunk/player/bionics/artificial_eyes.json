@@ -1,0 +1,83 @@
+[
+  {
+    "id": "cc_bio_eye_optic_1",
+    "type": "bionic",
+    "name": { "str": "Artificial Eyes: Correctional Replacements" },
+    "description": "Much of the material in your inner eye has been surgically removed and replaced with an array of high-powered, auto-focusing lenses.  They function as integrated binoculars, letting you see much farther than before, and any vision problems you might have had are now gone.",
+    "occupied_bodyparts": [ [ "eyes", 2 ] ],
+    "cant_remove_reason": "The CBM has completely replaced %1$s eyes now.  Removing them would leave %2$s blind.",
+    "canceled_mutations": [
+      "HYPEROPIC",
+      "MYOPIC",
+      "MESOPIC",
+      "URSINE_EYE",
+      "FROG_EYES",
+      "NIGHTVISION3",
+      "NIGHTVISION2",
+      "NIGHTVISION",
+      "BIRD_EYE",
+      "COMPOUND_EYES",
+      "LIZ_IR",
+      "CEPH_VISION",
+      "CEPH_EYES",
+      "ELFA_FNV",
+      "ELFA_NV",
+      "ELFAEYES",
+      "FEL_NV",
+      "FEL_EYE",
+      "INFRARED",
+      "LIZ_EYE",
+      "EYEBULGE",
+      "SEESLEEP"
+    ],
+    "mutation_conflicts": [ "EYESTALKS1", "EYESTALKS2" ],
+    "interchangeable_bionics": [ "bio_eye_optic", "cc_bio_eye_optic_3" ]
+  },
+  {
+    "id": "bio_eye_optic",
+    "type": "bionic",
+    "copy-from": "bio_eye_optic",
+    "name": { "str": "Artificial Eyes: Telescopic Eyes" },
+    "interchangeable_bionics": [ "cc_bio_eye_optic_1", "cc_bio_eye_optic_3" ]
+  },
+  {
+    "id": "cc_bio_eye_optic_3",
+    "type": "bionic",
+    "name": { "str": "Artificial Eyes: Wide Spectrum Analyzers" },
+    "description": "Much of the material in your inner eye has been surgically removed and replaced with an array of high-powered, auto-focusing lenses.  They function as integrated binoculars, letting you see much farther than before, and any vision problems you might have had are now gone.",
+    "occupied_bodyparts": [ [ "eyes", 2 ] ],
+    "flags": [ "ENHANCED_VISION" ],
+    "cant_remove_reason": "The CBM has completely replaced %1$s eyes now.  Removing them would leave %2$s blind.",
+    "canceled_mutations": [
+      "HYPEROPIC",
+      "MYOPIC",
+      "MESOPIC",
+      "URSINE_EYE",
+      "FROG_EYES",
+      "NIGHTVISION3",
+      "NIGHTVISION2",
+      "NIGHTVISION",
+      "BIRD_EYE",
+      "COMPOUND_EYES",
+      "LIZ_IR",
+      "CEPH_VISION",
+      "CEPH_EYES",
+      "ELFA_FNV",
+      "ELFA_NV",
+      "ELFAEYES",
+      "FEL_NV",
+      "FEL_EYE",
+      "INFRARED",
+      "LIZ_EYE",
+      "EYEBULGE",
+      "SEESLEEP"
+    ],
+    "mutation_conflicts": [ "EYESTALKS1", "EYESTALKS2" ],
+    "//": "Night Vision + Infrared enchant should mimic INFRARED + NIGHTVISION3 mutations",
+    "enchantments": [
+        { "values": [ { "value": "PERCEPTION", "add": 1 }, { "value": "NIGHT_VIS", "add": 10 } ] },
+        "THERMAL_VISION_GOOD_PASSIVE"
+    ],
+    "interchangeable_bionics": [ "cc_bio_eye_optic_1", "bio_eye_optic" ]
+  }
+]
