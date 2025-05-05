@@ -94,6 +94,8 @@ class outfit
         bool wearing_fitting_on( const bodypart_id &bp ) const;
         bool worn_with_flag( const flag_id &f, const bodypart_id &bp ) const;
         bool worn_with_flag( const flag_id &f ) const;
+        int count_worn_with_flag( const flag_id &f, const bodypart_id &bp ) const;
+        int count_worn_with_flag( const flag_id &f ) const;
         bool is_worn_item_visible( std::list<item>::const_iterator worn_item,
                                    const body_part_set &worn_item_body_parts ) const;
         // will someone get shocked by zapback

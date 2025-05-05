@@ -12102,7 +12102,8 @@ bool Character::has_flag( const json_character_flag &flag ) const
            has_bionic_with_flag( flag ) ||
            has_effect_with_flag( flag ) ||
            has_bodypart_with_flag( flag ) ||
-           has_mabuff_flag( flag );
+           has_mabuff_flag( flag ) ||
+           worn_with_flag( flag );
 }
 
 int Character::count_flag( const json_character_flag &flag ) const
@@ -12112,7 +12113,8 @@ int Character::count_flag( const json_character_flag &flag ) const
            count_bionic_with_flag( flag ) +
            has_effect_with_flag( flag ) +
            count_bodypart_with_flag( flag ) +
-           count_mabuff_flag( flag );
+           count_mabuff_flag( flag ) +
+           count_worn_with_flag( flag );
 }
 
 bool Character::empathizes_with_species( const species_id &species ) const

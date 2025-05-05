@@ -560,6 +560,16 @@ bool Character::worn_with_flag( const flag_id &f ) const
     return worn.worn_with_flag( f );
 }
 
+int Character::count_worn_with_flag( const flag_id &f, const bodypart_id &bp ) const
+{
+    return worn.count_worn_with_flag( f, bp );
+}
+
+int Character::count_worn_with_flag( const flag_id &f ) const
+{
+    return worn.count_worn_with_flag( f );
+}
+
 item Character::item_worn_with_flag( const flag_id &f, const bodypart_id &bp ) const
 {
     return worn.item_worn_with_flag( f, bp );
@@ -1022,6 +1032,28 @@ bool outfit::worn_with_flag( const flag_id &f ) const
     return std::any_of( worn.begin(), worn.end(), [&f]( const item & it ) {
         return it.has_flag( f );
     } );
+}
+
+int outfit::count_worn_with_flag( const flag_id &f, const bodypart_id &bp ) const
+{
+    int count = 0;
+    for( const item &it : worn ) {
+        if( it.has_flag( f ) && ( bp == bodypart_str_id::NULL_ID() || it.covers( bp ) ) ) {
+            count++;
+        }
+    }
+    return count;
+}
+
+int outfit::count_worn_with_flag( const flag_id &f ) const
+{
+    int count = 0;
+    for( const item &it : worn ) {
+        if( it.has_flag( f ) ) {
+            count++;
+        }
+    }
+    return count;
 }
 
 bool outfit::is_worn_item_visible( std::list<item>::const_iterator worn_item,

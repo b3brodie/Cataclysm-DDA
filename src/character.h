@@ -2437,6 +2437,9 @@ class Character : public Creature, public visitable
         /** Returns true if the player is wearing an item with the given flag. */
         bool worn_with_flag( const flag_id &flag, const bodypart_id &bp ) const;
         bool worn_with_flag( const flag_id &flag ) const;
+        /** Counts items worn with flag */
+        int count_worn_with_flag( const flag_id &flag, const bodypart_id &bp ) const;
+        int count_worn_with_flag( const flag_id &flag ) const;
         /** Returns the first worn item with a given flag. */
         item item_worn_with_flag( const flag_id &flag, const bodypart_id &bp ) const;
         item item_worn_with_flag( const flag_id &flag ) const;

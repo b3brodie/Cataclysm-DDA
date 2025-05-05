@@ -760,6 +760,13 @@
     "message": "",
     "teachable": false,
     "valid_targets": [ "hostile" ],
+    "condition": {
+      "and": [
+        { "not": { "npc_has_flag": "TELESTOP" } },
+        { "not": { "npc_has_flag": "TELEPORT_IMMUNE" } },
+        { "not": { "npc_has_flag": "DIMENSIONAL_ANCHOR" } }
+      ]
+    },
     "spell_class": "TELEPORTER",
     "magic_type": "mom_psionics",
     "skill": "metaphysics",
