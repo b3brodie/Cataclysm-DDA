@@ -70,10 +70,6 @@ constexpr float NPC_MONSTER_DANGER_MAX = 150.0f;
 constexpr float NPC_CHARACTER_DANGER_MAX = 250.0f;
 constexpr float NPC_COWARDICE_MODIFIER = 0.25f;
 
-namespace catacurses
-{
-class window;
-}  // namespace catacurses
 class gun_mode;
 struct overmap_location;
 struct pathfinding_settings;
@@ -178,7 +174,8 @@ enum npc_mission : int {
     NPC_MISSION_GUARD, // Assigns a non-allied NPC to remain in place
     NPC_MISSION_GUARD_PATROL, // Assigns a non-allied NPC to guard and investigate
     NPC_MISSION_ACTIVITY, // Perform a player_activity until it is complete
-    NPC_MISSION_TRAVELLING
+    NPC_MISSION_TRAVELLING,
+    NPC_MISSION_CAMP_RESIDENT // Attached to camp, works jobs + has free time
 };
 
 struct npc_companion_mission {
@@ -556,6 +553,9 @@ struct npc_short_term_cache {
     std::vector<weak_ptr_fast<Creature>> friends;
     std::vector<sphere> dangerous_explosives;
     std::map<direction, float> threat_map;
+    // BT goal commitment: persists across turns until completed or
+    // overridden by a higher-priority goal. Empty = no commitment.
+    std::string committed_goal;
     // Cache of locations the NPC has searched recently in npc::find_item()
     lru_cache<tripoint_abs_ms, int> searched_tiles;
     // returns the value of the distance between a friendly creature and the closest enemy to that
@@ -854,7 +854,6 @@ class npc : public Character
         nc_color basic_symbol_color() const override;
         int print_info( const catacurses::window &w, int line, int vLines, int column ) const override;
         std::string opinion_text() const;
-        int faction_display( const catacurses::window &fac_w, int width ) const;
         std::string describe_mission() const;
         std::string display_name( bool possessive = false ) const;
         std::string name_and_activity() const;
@@ -910,6 +909,9 @@ class npc : public Character
         bool is_leader() const;
         // Leading, following, or waiting for the player
         bool is_walking_with() const;
+        // Can actively close-follow right now: walking_with + follow_close
+        // rule + can move + no vehicle mismatch with player.
+        bool should_follow_close() const;
         // In the same faction
         bool is_ally( const Character &p ) const override;
         // Is an ally of the player
@@ -942,6 +944,16 @@ class npc : public Character
         time_point restock_time() const;
         std::string get_restock_interval() const;
         bool is_shopkeeper() const;
+        // Return the NPC who should actually handle trade for this NPC.
+        // Default: self. Intercom operators delegate to the supply clerk.
+        npc &get_trade_delegate();
+        // Reconcile shift-based schedule state. Wakes sleeping NPCs at
+        // shift start, floors sleepiness off-shift for !needs_food() NPCs.
+        // Called from npc_update_body() (in-bubble) and on_load() (off-bubble).
+        void reconcile_schedule();
+        // reconcile_schedule() plus coarse sleepiness correction for
+        // !needs_food() NPCs based on shift position. For on_load() only.
+        void reconcile_schedule_on_load();
         // Use and assessment of items
         // The minimum value to want to pick up an item
         int minimum_item_value() const;
@@ -1345,6 +1357,8 @@ class npc : public Character
         // A temp variable used to link to the correct mission
         std::vector<mission_type_id> miss_ids;
         std::optional<tripoint_abs_omt> assigned_camp = std::nullopt;
+        // AI throttle for camp job scanning. Transient, not serialized.
+        time_point last_job_scan = calendar::turn_zero;
 
         // accessors to ai_cache functions
         const std::vector<weak_ptr_fast<Creature>> &get_cached_friends() const;
@@ -1384,6 +1398,18 @@ class npc : public Character
         std::optional<tripoint_abs_ms> get_ai_guard_pos() const {
             return ai_cache.guard_pos;
         }
+        const std::string &get_committed_goal() const {
+            return ai_cache.committed_goal;
+        }
+        void set_committed_goal( const std::string &goal ) {
+            ai_cache.committed_goal = goal;
+        }
+        // Persistent duty post from mission/dialogue assignment.
+        // Used by BT duty predicates. Does NOT include ephemeral
+        // sound-investigation anchors from ai_cache.
+        std::optional<tripoint_abs_ms> get_guard_post() const {
+            return guard_pos;
+        }
         // Effective guard position: ai_cache (ephemeral, from sound investigation)
         // falls back to persistent guard_pos (from mission/dialogue assignment).
         std::optional<tripoint_abs_ms> get_effective_guard_pos() const {
@@ -1391,6 +1417,14 @@ class npc : public Character
                 return ai_cache.guard_pos;
             }
             return guard_pos;
+        }
+        void clear_ai_guard_pos() {
+            ai_cache.guard_pos = std::nullopt;
+        }
+        // Set cache guard_pos without touching persistent guard_pos.
+        // Used for temporary anchors like sound investigation targets.
+        void set_ai_guard_pos( const tripoint_abs_ms &p ) {
+            ai_cache.guard_pos = p;
         }
         void push_ai_sound_alert( const tripoint_abs_ms &pos, sounds::sound_t type, int vol ) {
             ai_cache.sound_alerts.push_back( { pos, type, vol } );

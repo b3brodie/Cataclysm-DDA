@@ -53,6 +53,12 @@ predicate_map = {{
         { "npc_has_target", make_function( &character_oracle_t::has_target ) },
         { "npc_has_sound_alerts", make_function( &character_oracle_t::has_sound_alerts ) },
         { "npc_displaced_from_post", make_function( &character_oracle_t::displaced_from_post ) },
+        { "npc_on_shift", make_function( &character_oracle_t::on_shift ) },
+        { "npc_is_following", make_function( &character_oracle_t::npc_is_following ) },
+        { "npc_has_goto_order", make_function( &character_oracle_t::npc_has_goto_order ) },
+        { "npc_has_camp_job", make_function( &character_oracle_t::has_camp_job ) },
+        { "npc_is_away_from_camp", make_function( &character_oracle_t::is_away_from_camp ) },
+        { "npc_is_camp_idle", make_function( &character_oracle_t::is_camp_idle ) },
         { "monster_not_hallucination", make_function( &monster_oracle_t::not_hallucination ) },
         { "monster_items_available", make_function( &monster_oracle_t::items_available ) },
         { "monster_split_possible", make_function( &monster_oracle_t::split_possible ) },
@@ -67,7 +73,12 @@ score_predicate_map = {{
         { "npc_hunger_urgency", make_score_function( &character_oracle_t::hunger_urgency ) },
         { "npc_warmth_urgency", make_score_function( &character_oracle_t::warmth_urgency ) },
         { "npc_sleepiness_urgency", make_score_function( &character_oracle_t::sleepiness_urgency ) },
-        { "npc_duty_urgency", make_score_function( &character_oracle_t::duty_urgency ) }
+        { "npc_duty_urgency", make_score_function( &character_oracle_t::duty_urgency ) },
+        { "npc_following_urgency", make_score_function( &character_oracle_t::npc_following_urgency ) },
+        { "npc_goto_order_urgency", make_score_function( &character_oracle_t::npc_goto_order_urgency ) },
+        { "npc_camp_work_urgency", make_score_function( &character_oracle_t::camp_work_urgency ) },
+        { "npc_return_to_camp_urgency", make_score_function( &character_oracle_t::return_to_camp_urgency ) },
+        { "npc_free_time_urgency", make_score_function( &character_oracle_t::free_time_urgency ) }
     }
 };
 

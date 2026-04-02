@@ -29,6 +29,7 @@
 #include "map.h"
 #include "map_helpers.h"
 #include "map_iterator.h"
+#include "map_scale_constants.h"
 #include "mapdata.h"
 #include "mapgen.h"
 #include "mapgendata.h"
@@ -37,6 +38,7 @@
 #include "monster_oracle.h"
 #include "mtype.h"
 #include "npc.h"
+#include "npc_class.h"
 #include "player_helpers.h"
 #include "pocket_type.h"
 #include "point.h"
@@ -58,6 +60,7 @@ static const itype_id itype_backpack( "backpack" );
 static const itype_id itype_corpse( "corpse" );
 static const itype_id itype_frame( "frame" );
 static const itype_id itype_lighter( "lighter" );
+static const itype_id itype_orange( "orange" );
 static const itype_id itype_pencil( "pencil" );
 static const itype_id itype_sandwich_cheese_grilled( "sandwich_cheese_grilled" );
 static const itype_id itype_sweater( "sweater" );
@@ -75,6 +78,7 @@ static const ter_str_id ter_t_ponywall( "t_ponywall" );
 static const ter_str_id ter_t_wall( "t_wall" );
 
 static const trait_id trait_IGNORE_SOUND( "IGNORE_SOUND" );
+static const trait_id trait_RETURN_TO_START_POS( "RETURN_TO_START_POS" );
 
 namespace behavior
 {
@@ -360,14 +364,13 @@ TEST_CASE( "check_npc_behavior_tree", "[npc][behavior]" )
 
         CHECK( npc_needs.tick( &oracle ) == "start_fire" );
     }
-    SECTION( "Dead tired but not exhausted -- sleep not feasible" ) {
-        // needs_sleep_badly fires at DEAD_TIRED (383) but can_sleep
-        // requires EXHAUSTED (575). Between the two, the need exists
-        // but the NPC pushes through.
+    SECTION( "Dead tired -- sleep is feasible" ) {
+        // can_sleep threshold matches needs_sleep_badly at DEAD_TIRED.
+        // Utility scoring handles duty priority, not can_sleep gating.
         test_npc.set_sleepiness( 500 );
         REQUIRE( oracle.needs_sleep_badly( "" ) == behavior::status_t::running );
-        REQUIRE( oracle.can_sleep( "" ) == behavior::status_t::failure );
-        CHECK( npc_needs.tick( &oracle ) == "idle" );
+        REQUIRE( oracle.can_sleep( "" ) == behavior::status_t::running );
+        CHECK( npc_needs.tick( &oracle ) == "go_to_sleep" );
     }
     SECTION( "Exhausted -- sleep is feasible" ) {
         test_npc.set_sleepiness( 600 );
@@ -1032,9 +1035,37 @@ TEST_CASE( "npc_decision_duty_predicates", "[npc][behavior]" )
     SECTION( "duty_urgency zero without post" ) {
         CHECK( oracle.duty_urgency( "" ) == Approx( 0.0f ) );
     }
-    SECTION( "duty_urgency nonzero when displaced" ) {
+    SECTION( "on_shift follows work_hours from npc_class" ) {
+        // Default work_hours [0,24] means always on shift.
+        guy.set_guard_pos( guy.pos_abs() );
+        calendar::turn = calendar::turn_zero + 14_hours;
+        CHECK( oracle.on_shift( "" ) == behavior::status_t::running );
+        calendar::turn = calendar::turn_zero + 2_hours;
+        CHECK( oracle.on_shift( "" ) == behavior::status_t::running );
+    }
+    SECTION( "on_shift requires guard_pos" ) {
+        CHECK( oracle.on_shift( "" ) == behavior::status_t::failure );
+    }
+    SECTION( "duty_urgency on-shift at post" ) {
+        // Default work_hours [0,24]: always on shift.
+        guy.set_guard_pos( guy.pos_abs() );
+        calendar::turn = calendar::turn_zero + 12_hours;
+        CHECK( oracle.duty_urgency( "" ) == Approx( 0.45f ) );
+    }
+    SECTION( "duty_urgency on-shift scales with distance" ) {
+        calendar::turn = calendar::turn_zero + 12_hours;
+
+        guy.set_guard_pos( guy.pos_abs() + tripoint::east );
+        CHECK( oracle.duty_urgency( "" ) == Approx( 0.45f ) );
+
         guy.set_guard_pos( guy.pos_abs() + tripoint( 5, 0, 0 ) );
-        CHECK( oracle.duty_urgency( "" ) > 0.0f );
+        CHECK( oracle.duty_urgency( "" ) == Approx( 0.45f ) );
+
+        guy.set_guard_pos( guy.pos_abs() + tripoint( 10, 0, 0 ) );
+        CHECK( oracle.duty_urgency( "" ) == Approx( 0.5f ) );
+
+        guy.set_guard_pos( guy.pos_abs() + tripoint( 20, 0, 0 ) );
+        CHECK( oracle.duty_urgency( "" ) == Approx( 0.5f ) );
     }
 }
 
@@ -1123,15 +1154,28 @@ TEST_CASE( "npc_decision_tree_priorities", "[npc][behavior]" )
         CHECK( npc_decision.tick( &oracle ) == "go_to_sleep" );
     }
     SECTION( "tired but not exhausted guard stays on duty" ) {
-        // sleepiness 400 -> needs_sleep_badly running, but can_sleep fails
-        // (EXHAUSTED=575). No feasible sleep -> duty wins.
+        // sleepiness 400 -> can_sleep passes (DEAD_TIRED=383), but
+        // sleepiness_urgency(0.4) < duty_urgency(0.5) -> duty wins.
+        // Default work_hours [0,24] means always on shift.
         guy.set_sleepiness( 400 );
         REQUIRE( oracle.needs_sleep_badly( "" ) == behavior::status_t::running );
-        REQUIRE( oracle.can_sleep( "" ) == behavior::status_t::failure );
+        REQUIRE( oracle.can_sleep( "" ) == behavior::status_t::running );
         guy.set_guard_pos( guy.pos_abs() + tripoint( 10, 0, 0 ) );
         CHECK( npc_decision.tick( &oracle ) == "return_to_guard_pos" );
     }
+    SECTION( "on-shift at post beats DEAD_TIRED sleep" ) {
+        // At post during shift: duty 0.45 > sleepiness_urgency 0.383.
+        // Default work_hours [0,24], so NPC is always on shift.
+        guy.set_sleepiness( 383 );
+        REQUIRE( oracle.needs_sleep_badly( "" ) == behavior::status_t::running );
+        REQUIRE( oracle.can_sleep( "" ) == behavior::status_t::running );
+        guy.set_guard_pos( guy.pos_abs() );
+        CHECK( npc_decision.tick( &oracle ) == "hold_position" );
+    }
     SECTION( "idle when nothing fires" ) {
+        // Ensure no stale guard_pos from spawn (random traits may set it).
+        guy.guard_pos = std::nullopt;
+        guy.clear_ai_guard_pos();
         CHECK( npc_decision.tick( &oracle ) == "idle" );
     }
 }
@@ -1197,9 +1241,11 @@ TEST_CASE( "npc_decision_bt_contract_guard_duty", "[npc][behavior]" )
         REQUIRE( oracle.can_sleep( "" ) == behavior::status_t::running );
         CHECK( npc_decision.tick( &oracle ) == "go_to_sleep" );
     }
-    SECTION( "guard at post with no needs: BT returns idle" ) {
+    SECTION( "guard at post on shift: BT returns hold_position" ) {
         guy.set_guard_pos( guy.pos_abs() );
-        CHECK( npc_decision.tick( &oracle ) == "idle" );
+        // Default work_hours [0,24] = always on shift. At post, on shift
+        // means hold_position (duty 0.45 beats any sub-threshold need).
+        CHECK( npc_decision.tick( &oracle ) == "hold_position" );
     }
 }
 
@@ -1210,5 +1256,453 @@ TEST_CASE( "npc_decision_predicates_registered", "[npc][behavior]" )
     CHECK( behavior::predicate_map.count( "npc_has_target" ) == 1 );
     CHECK( behavior::predicate_map.count( "npc_has_sound_alerts" ) == 1 );
     CHECK( behavior::predicate_map.count( "npc_displaced_from_post" ) == 1 );
+    CHECK( behavior::predicate_map.count( "npc_on_shift" ) == 1 );
+    CHECK( behavior::predicate_map.count( "npc_is_following" ) == 1 );
+    CHECK( behavior::predicate_map.count( "npc_has_goto_order" ) == 1 );
     CHECK( behavior::score_predicate_map.count( "npc_duty_urgency" ) == 1 );
+    CHECK( behavior::score_predicate_map.count( "npc_following_urgency" ) == 1 );
+    CHECK( behavior::score_predicate_map.count( "npc_goto_order_urgency" ) == 1 );
+}
+
+TEST_CASE( "duty_predicates_use_persistent_guard_pos_only", "[npc][behavior]" )
+{
+    clear_map_without_vision();
+    npc &guy = spawn_npc( { 50, 50 }, "test_talker" );
+    clear_character( guy );
+    behavior::character_oracle_t oracle( &guy );
+
+    SECTION( "displaced_from_post: failure with only temp anchor" ) {
+        guy.guard_pos = std::nullopt;
+        guy.set_ai_guard_pos( guy.pos_abs() + tripoint( 5, 0, 0 ) );
+        REQUIRE( guy.get_effective_guard_pos().has_value() );
+        REQUIRE_FALSE( guy.get_guard_post().has_value() );
+        CHECK( oracle.displaced_from_post( "" ) == behavior::status_t::failure );
+    }
+    SECTION( "on_shift: failure with only temp anchor" ) {
+        guy.guard_pos = std::nullopt;
+        guy.set_ai_guard_pos( guy.pos_abs() );
+        REQUIRE_FALSE( guy.get_guard_post().has_value() );
+        CHECK( oracle.on_shift( "" ) == behavior::status_t::failure );
+    }
+    SECTION( "duty_urgency: zero with only temp anchor" ) {
+        guy.guard_pos = std::nullopt;
+        guy.set_ai_guard_pos( guy.pos_abs() );
+        CHECK( oracle.duty_urgency( "" ) == Approx( 0.0f ) );
+    }
+    SECTION( "duty still works with persistent guard_pos" ) {
+        guy.set_guard_pos( guy.pos_abs() );
+        calendar::turn = calendar::turn_zero + 12_hours;
+        CHECK( oracle.on_shift( "" ) == behavior::status_t::running );
+        CHECK( oracle.duty_urgency( "" ) == Approx( 0.45f ) );
+    }
+}
+
+TEST_CASE( "npc_is_following_predicate", "[npc][behavior]" )
+{
+    clear_map_without_vision();
+    map &here = get_map();
+    get_player_character().setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    npc &guy = spawn_npc( { 50, 50 }, "test_talker" );
+    clear_character( guy );
+    guy.setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    guy.set_fac( faction_your_followers );
+    guy.guard_pos = std::nullopt;
+    guy.clear_ai_guard_pos();
+    behavior::character_oracle_t oracle( &guy );
+
+    SECTION( "failure when not walking_with" ) {
+        guy.set_attitude( NPCATT_NULL );
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::failure );
+    }
+    SECTION( "failure when follow_close not set" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.clear_flag( ally_rule::follow_close );
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::failure );
+    }
+    SECTION( "failure when has guard_pos" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        guy.set_guard_pos( guy.pos_abs() + tripoint( 10, 0, 0 ) );
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::failure );
+    }
+    SECTION( "failure when player in vehicle and NPC not" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().in_vehicle = true;
+        guy.in_vehicle = false;
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::failure );
+        get_player_character().in_vehicle = false;
+    }
+    SECTION( "success when within follow_distance" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        REQUIRE( rl_dist( guy.pos_abs(), get_player_character().pos_abs() ) == 0 );
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::success );
+    }
+    SECTION( "running when beyond follow_distance" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 60, 50, 0 ) );
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::running );
+    }
+    SECTION( "running when different z-level" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 50, 50, -1 ) );
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::running );
+    }
+    SECTION( "temp anchor alone does not block follow" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        guy.guard_pos = std::nullopt;
+        guy.set_ai_guard_pos( guy.pos_abs() + tripoint( 3, 0, 0 ) );
+        REQUIRE( guy.get_effective_guard_pos().has_value() );
+        REQUIRE_FALSE( guy.get_guard_post().has_value() );
+        get_player_character().setpos( here, tripoint_bub_ms( 60, 50, 0 ) );
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::running );
+    }
+}
+
+// Provisional urgency thresholds -- will change when the time_to_die
+// evaluation contract lands (#28681). Tests pin current behavior.
+TEST_CASE( "npc_following_urgency_policy", "[npc][behavior]" )
+{
+    clear_map_without_vision();
+    map &here = get_map();
+    get_player_character().setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    npc &guy = spawn_npc( { 50, 50 }, "test_talker" );
+    clear_character( guy );
+    guy.setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    guy.set_fac( faction_your_followers );
+    guy.set_attitude( NPCATT_FOLLOW );
+    guy.rules.set_flag( ally_rule::follow_close );
+    guy.guard_pos = std::nullopt;
+    guy.clear_ai_guard_pos();
+    behavior::character_oracle_t oracle( &guy );
+
+    SECTION( "follow loses to severe thirst" ) {
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        float follow_score = oracle.npc_following_urgency( "" );
+        guy.set_thirst( 900 );
+        float thirst_score = oracle.thirst_urgency( "" );
+        CHECK( thirst_score > follow_score );
+    }
+    SECTION( "follow beats mild hunger" ) {
+        get_player_character().setpos( here, tripoint_bub_ms( 60, 50, 0 ) );
+        float follow_score = oracle.npc_following_urgency( "" );
+        guy.set_stored_kcal( static_cast<int>( guy.get_healthy_kcal() * 0.85 ) );
+        float hunger_score = oracle.hunger_urgency( "" );
+        CHECK( follow_score > hunger_score );
+    }
+    SECTION( "follow does not fire without follow_close" ) {
+        guy.rules.clear_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        CHECK( oracle.npc_following_urgency( "" ) == Approx( 0.0f ) );
+    }
+    SECTION( "follow capped below life-threatening needs" ) {
+        get_player_character().setpos( here, tripoint_bub_ms( 100, 50, 0 ) );
+        float follow_score = oracle.npc_following_urgency( "" );
+        guy.set_stored_kcal( static_cast<int>( guy.get_healthy_kcal() * 0.2 ) );
+        float hunger_score = oracle.hunger_urgency( "" );
+        CHECK( hunger_score > follow_score );
+    }
+}
+
+TEST_CASE( "npc_decision_follow_tree", "[npc][behavior]" )
+{
+    clear_map_without_vision();
+    map &here = get_map();
+    get_player_character().setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    behavior::tree npc_decision;
+    npc_decision.add( &behavior_node_t_npc_decision.obj() );
+    npc &guy = spawn_npc( { 50, 50 }, "test_talker" );
+    clear_character( guy );
+    guy.setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    guy.set_fac( faction_your_followers );
+    guy.set_attitude( NPCATT_FOLLOW );
+    guy.rules.set_flag( ally_rule::follow_close );
+    guy.guard_pos = std::nullopt;
+    guy.clear_ai_guard_pos();
+    behavior::character_oracle_t oracle( &guy );
+
+    SECTION( "follower beyond distance: follow_player" ) {
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        CHECK( npc_decision.tick( &oracle ) == "follow_player" );
+    }
+    SECTION( "follower at player: idle" ) {
+        REQUIRE( rl_dist( guy.pos_abs(), get_player_character().pos_abs() ) == 0 );
+        CHECK( npc_decision.tick( &oracle ) == "idle" );
+    }
+    SECTION( "extreme thirst beats following" ) {
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        guy.set_thirst( 900 );
+        guy.i_add( item( itype_orange ) );
+        REQUIRE( oracle.has_water( "" ) == behavior::status_t::running );
+        CHECK( npc_decision.tick( &oracle ) == "drink_water" );
+    }
+}
+
+TEST_CASE( "bt_goal_category_mapping_follow", "[npc][behavior]" )
+{
+    CHECK( bt_goal_to_category( "follow_player" ) == decision_category::follow );
+}
+
+TEST_CASE( "follow_and_duty_are_mutually_exclusive", "[npc][behavior]" )
+{
+    clear_map_without_vision();
+    map &here = get_map();
+    get_player_character().setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    npc &guy = spawn_npc( { 50, 50 }, "test_talker" );
+    clear_character( guy );
+    guy.set_fac( faction_your_followers );
+    behavior::character_oracle_t oracle( &guy );
+    calendar::turn = calendar::turn_zero + 12_hours;
+
+    SECTION( "guard_pos set: duty fires, follow fails" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        const tripoint_abs_ms post = guy.pos_abs() + tripoint( 5, 0, 0 );
+        guy.set_guard_pos( post );
+        REQUIRE( guy.myclass.is_valid() );
+        REQUIRE( guy.get_guard_post().has_value() );
+        const auto &[wh_start, wh_end] = guy.myclass.obj().get_work_hours();
+        REQUIRE( ( wh_start == 0 && wh_end == 24 ) );
+        get_player_character().setpos( here, tripoint_bub_ms( 60, 50, 0 ) );
+        CHECK( oracle.displaced_from_post( "" ) == behavior::status_t::running );
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::failure );
+    }
+    SECTION( "no guard_pos: follow fires, duty fails" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        guy.guard_pos = std::nullopt;
+        guy.clear_ai_guard_pos();
+        REQUIRE_FALSE( guy.get_guard_post().has_value() );
+        get_player_character().setpos( here, tripoint_bub_ms( 60, 50, 0 ) );
+        CHECK( oracle.npc_is_following( "" ) == behavior::status_t::running );
+        CHECK( oracle.displaced_from_post( "" ) == behavior::status_t::failure );
+        CHECK( oracle.duty_urgency( "" ) == Approx( 0.0f ) );
+    }
+}
+
+static std::string bt_goal( const npc &guy )
+{
+    behavior::character_oracle_t oracle( &guy );
+    behavior::tree dt;
+    dt.add( &behavior_node_t_npc_decision.obj() );
+    return dt.tick( &oracle );
+}
+
+TEST_CASE( "npc_player_order_predicate_and_goal", "[npc][behavior]" )
+{
+    clear_map_without_vision();
+    map &here = get_map();
+    get_player_character().setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    npc &guy = spawn_npc( { 50, 50 }, "test_talker" );
+    clear_character( guy );
+    guy.setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    guy.set_fac( faction_your_followers );
+    guy.set_attitude( NPCATT_FOLLOW );
+    guy.rules.set_flag( ally_rule::follow_close );
+    guy.guard_pos = std::nullopt;
+    guy.clear_ai_guard_pos();
+    behavior::character_oracle_t oracle( &guy );
+
+    SECTION( "no order: failure" ) {
+        guy.goto_to_this_pos = std::nullopt;
+        CHECK( oracle.npc_has_goto_order( "" ) == behavior::status_t::failure );
+    }
+    SECTION( "pending order: running" ) {
+        guy.goto_to_this_pos = guy.pos_abs() + tripoint( 10, 0, 0 );
+        CHECK( oracle.npc_has_goto_order( "" ) == behavior::status_t::running );
+    }
+    SECTION( "at target: success" ) {
+        guy.goto_to_this_pos = guy.pos_abs();
+        CHECK( oracle.npc_has_goto_order( "" ) == behavior::status_t::success );
+    }
+    SECTION( "order beats follow in BT" ) {
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        guy.goto_to_this_pos = guy.pos_abs() + tripoint( 10, 0, 0 );
+        CHECK( bt_goal( guy ) == "goto_ordered_position" );
+    }
+    SECTION( "severe thirst beats order" ) {
+        guy.goto_to_this_pos = guy.pos_abs() + tripoint( 10, 0, 0 );
+        guy.set_thirst( 900 );
+        guy.i_add( item( itype_orange ) );
+        REQUIRE( oracle.has_water( "" ) == behavior::status_t::running );
+        CHECK( bt_goal( guy ) == "drink_water" );
+    }
+}
+
+TEST_CASE( "bt_goal_category_mapping_order", "[npc][behavior]" )
+{
+    CHECK( bt_goal_to_category( "goto_ordered_position" ) == decision_category::order );
+}
+
+TEST_CASE( "bt_priority_matrix", "[npc][behavior]" )
+{
+    clear_map_without_vision();
+    map &here = get_map();
+    get_player_character().setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    npc &guy = spawn_npc( { 50, 50 }, "test_talker" );
+    clear_character( guy );
+    guy.setpos( here, tripoint_bub_ms( 50, 50, 0 ) );
+    guy.set_fac( faction_your_followers );
+    guy.guard_pos = std::nullopt;
+    guy.clear_ai_guard_pos();
+    calendar::turn = calendar::turn_zero + 12_hours;
+
+    SECTION( "healthy follower at player: idle" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        CHECK( bt_goal( guy ) == "idle" );
+    }
+    SECTION( "follower beyond distance: follow_player" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        CHECK( bt_goal( guy ) == "follow_player" );
+    }
+    SECTION( "leader: not follow_player" ) {
+        guy.set_attitude( NPCATT_LEAD );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        CHECK( bt_goal( guy ) != "follow_player" );
+    }
+    SECTION( "waiting NPC with follow_close: follows" ) {
+        // WAIT is in is_following(), same as old cascade.
+        guy.set_attitude( NPCATT_WAIT );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        CHECK( bt_goal( guy ) == "follow_player" );
+    }
+    SECTION( "guard_pos set: duty beats follow" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        const tripoint_abs_ms post = guy.pos_abs() + tripoint( 5, 0, 0 );
+        guy.set_guard_pos( post );
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        CHECK( bt_goal( guy ) == "return_to_guard_pos" );
+    }
+    SECTION( "severe thirst beats follow" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        guy.set_thirst( 900 );
+        guy.i_add( item( itype_orange ) );
+        behavior::character_oracle_t oracle( &guy );
+        REQUIRE( oracle.needs_water_badly( "" ) == behavior::status_t::running );
+        REQUIRE( oracle.has_water( "" ) == behavior::status_t::running );
+        REQUIRE( oracle.thirst_urgency( "" ) > oracle.npc_following_urgency( "" ) );
+        CHECK( bt_goal( guy ) == "drink_water" );
+    }
+    SECTION( "mild hunger loses to follow" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 60, 50, 0 ) );
+        guy.set_stored_kcal( static_cast<int>( guy.get_healthy_kcal() * 0.85 ) );
+        CHECK( bt_goal( guy ) == "follow_player" );
+    }
+    SECTION( "goto order beats follow" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        guy.goto_to_this_pos = guy.pos_abs() + tripoint( 10, 0, 0 );
+        CHECK( bt_goal( guy ) == "goto_ordered_position" );
+    }
+    SECTION( "no follow_close rule: idle" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.clear_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        CHECK( bt_goal( guy ) == "idle" );
+    }
+    SECTION( "player in vehicle, NPC not: no follow" ) {
+        guy.set_attitude( NPCATT_FOLLOW );
+        guy.rules.set_flag( ally_rule::follow_close );
+        get_player_character().setpos( here, tripoint_bub_ms( 70, 50, 0 ) );
+        get_player_character().in_vehicle = true;
+        CHECK( bt_goal( guy ) != "follow_player" );
+        get_player_character().in_vehicle = false;
+    }
+    SECTION( "camp resident idle: free_time" ) {
+        guy.set_mission( NPC_MISSION_CAMP_RESIDENT );
+        guy.assigned_camp = project_to<coords::omt>( guy.pos_abs() );
+        guy.guard_pos = std::nullopt;
+        guy.clear_ai_guard_pos();
+        CHECK( bt_goal( guy ) == "free_time" );
+    }
+}
+
+// --- Camp resident state split tests ---
+
+TEST_CASE( "duty_predicates_skip_camp_residents", "[npc][behavior]" )
+{
+    clear_map_without_vision();
+    clear_avatar();
+    get_map();
+    npc &guy = spawn_npc( { 50, 50 }, "test_talker" );
+    clear_character( guy, true );
+    guy.set_fac( faction_your_followers );
+    guy.set_mission( NPC_MISSION_CAMP_RESIDENT );
+    guy.assigned_camp = project_to<coords::omt>( guy.pos_abs() );
+    guy.guard_pos = std::nullopt;
+    guy.clear_ai_guard_pos();
+    calendar::turn = calendar::turn_zero + 12_hours;
+
+    behavior::character_oracle_t oracle( &guy );
+
+    SECTION( "RETURN_TO_START_POS suppressed" ) {
+        guy.set_mutation( trait_RETURN_TO_START_POS );
+        guy.regen_ai_cache();
+        CHECK_FALSE( guy.get_guard_post().has_value() );
+    }
+    SECTION( "on_shift fails" ) {
+        CHECK( oracle.on_shift( "" ) == behavior::status_t::failure );
+    }
+    SECTION( "duty_urgency is 0" ) {
+        CHECK( oracle.duty_urgency( "" ) == 0.0f );
+    }
+    SECTION( "displaced_from_post fails" ) {
+        CHECK( oracle.displaced_from_post( "" ) == behavior::status_t::failure );
+    }
+}
+
+TEST_CASE( "bt_camp_resident_goals", "[npc][behavior]" )
+{
+    clear_map_without_vision();
+    clear_avatar();
+    map &here = get_map();
+    npc &guy = spawn_npc( { 50, 50 }, "test_talker" );
+    clear_character( guy, true );
+    guy.set_fac( faction_your_followers );
+    guy.set_mission( NPC_MISSION_CAMP_RESIDENT );
+    guy.assigned_camp = project_to<coords::omt>( guy.pos_abs() );
+    guy.guard_pos = std::nullopt;
+    guy.clear_ai_guard_pos();
+
+    SECTION( "idle at camp: free_time" ) {
+        CHECK( bt_goal( guy ) == "free_time" );
+    }
+    SECTION( "on activity: not free_time" ) {
+        guy.set_attitude( NPCATT_ACTIVITY );
+        CHECK( bt_goal( guy ) != "free_time" );
+    }
+    SECTION( "away from camp: return_to_camp" ) {
+        guy.setpos( here, tripoint_bub_ms( 50 + SEEX * 2, 50, 0 ) );
+        REQUIRE( guy.pos_abs_omt() != *guy.assigned_camp );
+        CHECK( bt_goal( guy ) == "return_to_camp" );
+    }
+    SECTION( "severe thirst beats free_time" ) {
+        guy.set_thirst( 900 );
+        guy.i_add( item( itype_orange ) );
+        behavior::character_oracle_t oracle( &guy );
+        REQUIRE( oracle.has_water( "" ) == behavior::status_t::running );
+        CHECK( bt_goal( guy ) == "drink_water" );
+    }
+}
+
+TEST_CASE( "bt_goal_category_mapping_camp", "[npc][behavior]" )
+{
+    CHECK( bt_goal_to_category( "camp_work" ) == decision_category::camp_work );
+    CHECK( bt_goal_to_category( "free_time" ) == decision_category::free_time );
+    CHECK( bt_goal_to_category( "return_to_camp" ) == decision_category::camp_travel );
 }

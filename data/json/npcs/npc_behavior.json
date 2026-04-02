@@ -34,20 +34,40 @@
     "type": "behavior",
     "id": "npc_priorities",
     "strategy": "utility",
-    "children": [ "npc_needs", "npc_duty" ]
+    "children": [ "npc_needs", "npc_duty", "npc_follow", "npc_player_order", "npc_camp_work", "npc_return_to_camp", "npc_free_time" ]
   },
   {
     "type": "behavior",
     "id": "npc_duty",
-    "strategy": "sequential",
-    "children": [ "npc_return_to_post" ],
+    "strategy": "fallback",
+    "children": [ "npc_return_to_post", "npc_hold_post" ],
     "score": "npc_duty_urgency"
   },
   {
     "type": "behavior",
     "id": "npc_return_to_post",
-    "conditions": [ { "predicate": "npc_displaced_from_post" } ],
+    "conditions": [ { "predicate": "npc_on_shift" }, { "predicate": "npc_displaced_from_post" } ],
     "goal": "return_to_guard_pos"
+  },
+  {
+    "type": "behavior",
+    "id": "npc_hold_post",
+    "conditions": [ { "predicate": "npc_on_shift" } ],
+    "goal": "hold_position"
+  },
+  {
+    "type": "behavior",
+    "id": "npc_follow",
+    "conditions": [ { "predicate": "npc_is_following" } ],
+    "goal": "follow_player",
+    "score": "npc_following_urgency"
+  },
+  {
+    "type": "behavior",
+    "id": "npc_player_order",
+    "conditions": [ { "predicate": "npc_has_goto_order" } ],
+    "goal": "goto_ordered_position",
+    "score": "npc_goto_order_urgency"
   },
   {
     "type": "behavior",
@@ -128,5 +148,26 @@
     "id": "npc_go_to_sleep",
     "conditions": [ { "predicate": "npc_can_sleep" } ],
     "goal": "go_to_sleep"
+  },
+  {
+    "type": "behavior",
+    "id": "npc_camp_work",
+    "conditions": [ { "predicate": "npc_has_camp_job" } ],
+    "goal": "camp_work",
+    "score": "npc_camp_work_urgency"
+  },
+  {
+    "type": "behavior",
+    "id": "npc_return_to_camp",
+    "conditions": [ { "predicate": "npc_is_away_from_camp" } ],
+    "goal": "return_to_camp",
+    "score": "npc_return_to_camp_urgency"
+  },
+  {
+    "type": "behavior",
+    "id": "npc_free_time",
+    "conditions": [ { "predicate": "npc_is_camp_idle" } ],
+    "goal": "free_time",
+    "score": "npc_free_time_urgency"
   }
 ]
