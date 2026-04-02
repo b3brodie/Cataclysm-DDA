@@ -554,6 +554,7 @@ static void GENERATOR_pre_burn( map &md,
 
 static void GENERATOR_riot_damage( map &md, const tripoint_abs_omt &p, bool is_a_road )
 {
+    return;
     std::list<tripoint_bub_ms> all_points_in_map;
 
 
