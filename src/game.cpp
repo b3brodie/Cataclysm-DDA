@@ -711,7 +711,6 @@ void game::setup()
     achievements_tracker_ptr->clear();
     eoc_events_ptr->clear();
     // reset follower list
-    follower_ids.clear();
     scent.reset();
     effect_on_conditions::clear( u );
     u.character_mood_face( true );
@@ -838,6 +837,12 @@ bool game::start_game()
     load_map( lev, /*pump_events=*/true );
 
     start_loc.place_player( u, omtstart );
+    // Set spawn location for starting items (maps need it to be readable)
+    const tripoint_abs_ms player_pos = u.pos_abs();
+    u.visit_items( [&player_pos]( item * it, item * ) {
+        it->preserve_location( player_pos );
+        return VisitResponse::NEXT;
+    } );
     map &here = reality_bubble();
     int level = here.get_abs_sub().z();
     // Rebuild map cache because we want visibility cache to avoid spawning monsters in sight
@@ -1722,13 +1727,11 @@ npc *game::find_npc_by_unique_id( const std::string &unique_id )
 
 void game::add_npc_follower( const character_id &id )
 {
-    follower_ids.insert( id );
     u.follower_ids.insert( id );
 }
 
 void game::remove_npc_follower( const character_id &id )
 {
-    follower_ids.erase( id );
     u.follower_ids.erase( id );
 }
 
@@ -1818,7 +1821,7 @@ void game::validate_camps()
 
 std::set<character_id> game::get_follower_list()
 {
-    return follower_ids;
+    return get_avatar().get_followers();
 }
 
 static hint_rating rate_action_change_side( const avatar &you, const item &it )
@@ -2892,7 +2895,6 @@ void game::death_screen()
     u.get_avatar_diary()->death_entry();
     show_scores_ui();
     disp_NPC_epilogues();
-    follower_ids.clear();
     display_faction_epilogues();
 }
 
@@ -2910,7 +2912,7 @@ std::string game::timestamp_now()
 
 void game::reset_npc_dispositions()
 {
-    for( character_id elem : follower_ids ) {
+    for( character_id elem : get_follower_list() ) {
         shared_ptr_fast<npc> npc_to_get = overmap_buffer.find_npc( elem );
         if( !npc_to_get )  {
             continue;
@@ -2987,7 +2989,7 @@ power_network_manager &game::power_networks()
 void game::disp_NPC_epilogues()
 {
     // TODO: This search needs to be expanded to all NPCs
-    for( character_id elem : follower_ids ) {
+    for( character_id elem : get_follower_list() ) {
         shared_ptr_fast<npc> guy = overmap_buffer.find_npc( elem );
         if( !guy ) {
             continue;

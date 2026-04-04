@@ -980,6 +980,8 @@ class Character : public Creature, public visitable
         /** Returns body weight plus weight of inventory and worn/wielded items */
         units::mass get_weight() const override;
 
+        units::mass bodyweight_with_bionic() const;
+
         // formats and prints encumbrance info to specified window
         void print_encumbrance( ui_adaptor &ui, const catacurses::window &win, int line = -1,
                                 const item *selected_clothing = nullptr ) const;
@@ -3104,6 +3106,8 @@ class Character : public Creature, public visitable
         bool has_activity( const activity_id &type ) const;
         /** Check if player currently has any of the given activities */
         bool has_activity( const std::vector<activity_id> &types ) const;
+        /** Check if character has a given sub_bodypart */
+        bool has_sub_bodypart( const sub_bodypart_id &sbp ) const;
         void resume_backlog_activity();
         void cancel_activity();
         void cancel_stashed_activity();
