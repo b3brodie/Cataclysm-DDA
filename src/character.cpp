@@ -7841,6 +7841,10 @@ int Character::impact( const int force, const tripoint_bub_ms &p )
         }
     }
 
+    if( !has_proficiency(proficiency_prof_parkour) ) {
+        practice_proficiency( proficiency_prof_parkour, 1_seconds );
+    }
+
     if( !slam && mod < 1.0f && mod * force < 5 ) {
         // Perfect landing, no damage (regardless of armor)
         add_msg_if_player( m_warning, _( "You land on %s." ), target_name );

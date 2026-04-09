@@ -7778,8 +7778,12 @@ bool game::walk_move( const tripoint_bub_ms &dest_loc, const bool via_ramp,
     const bool fungus = here.has_flag_ter_or_furn( ter_furn_flag::TFLAG_FUNGUS, pos ) ||
                         here.has_flag_ter_or_furn( ter_furn_flag::TFLAG_FUNGUS,
                                 dest_loc ); //fungal furniture has no slowing effect on Mycus characters
-    const bool slowed = ( ( !u.has_proficiency( proficiency_prof_parkour ) && ( mcost_to > 2 ||
-                            mcost_from > 2 ) ) ||
+    bool is_slowed_by_parkour_inexperience = false;
+    if ( !u.has_proficiency( proficiency_prof_parkour ) && ( mcost_to > 2 || mcost_from > 2 ) ) {
+        is_slowed_by_parkour_inexperience = true;
+        u.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves(mcost) );
+    }
+    const bool slowed = ( is_slowed_by_parkour_inexperience ||
                           mcost_to > 4 || mcost_from > 4 ) ||
                         ( !u.has_trait( trait_M_IMMUNE ) && fungus );
     if( slowed && !u.is_mounted() ) {
@@ -8126,6 +8130,9 @@ point_rel_sm game::place_player( const tripoint_bub_ms &dest_loc, bool quick )
                 u.mounted_creature->apply_damage( nullptr, bodypart_id( "torso" ), sharp_damage );
             }
         } else {
+            if( !u.has_proficiency( proficiency_prof_parkour ) ) {
+                u.practice_proficiency( proficiency_prof_parkour, 1_seconds );
+            }
             if( u.get_hp() > sharp_damage ) {
                 const bodypart_id bp = u.get_random_body_part();
                 if( u.deal_damage( nullptr, bp,
@@ -10740,7 +10747,7 @@ void game::shift_destination_preview( const point_rel_ms &delta )
 }
 
 float game::slip_down_chance( climb_maneuver, climbing_aid_id aid_id,
-                              bool show_chance_messages )
+                              bool show_chance_messages ) const
 {
     if( aid_id.is_null() ) {
         // The NULL climbing aid ID may be passed as a default argument.
@@ -10764,12 +10771,12 @@ float game::slip_down_chance( climb_maneuver, climbing_aid_id aid_id,
         if( show_chance_messages ) {
             add_msg( m_info, _( "Your skill in parkour makes up for your bad knees while climbing." ) );
         }
-    } else if( u.has_proficiency( proficiency_prof_parkour ) ) {
+    } else if( parkour ) {
         slip /= 2;
         if( show_chance_messages ) {
             add_msg( m_info, _( "Your skill in parkour makes it easier to climb." ) );
         }
-    } else if( u.has_trait( trait_BADKNEES ) ) {
+    } else if( badknees ) {
         slip *= 2;
         if( show_chance_messages ) {
             add_msg( m_info, _( "Your bad knees make it difficult to climb." ) );
@@ -10893,6 +10900,9 @@ bool game::slip_down( climb_maneuver maneuver, climbing_aid_id aid_id,
         add_msg( m_bad, _( "You slip while climbing and fall down." ) );
         if( slip >= 100 ) {
             add_msg( m_bad, _( "Climbing is impossible in your current state." ) );
+        }
+        if( !u.has_proficiency( proficiency_prof_parkour ) ) {
+            u.practice_proficiency( proficiency_prof_parkour, 1_seconds );
         }
         // Check for traps and gravity if climbing up or down.
         if( maneuver != climb_maneuver::over_obstacle ) {
@@ -11178,7 +11188,8 @@ void game::climb_down_using( const tripoint_bub_ms &examp, climbing_aid_id aid_i
     you.set_activity_level( ACTIVE_EXERCISE );
     float weary_mult = 1.0f / you.exertion_adjusted_move_multiplier( ACTIVE_EXERCISE );
 
-    you.mod_moves( -to_moves<int>( 1_seconds + 1_seconds * fall_mod ) * weary_mult );
+    const int moves_used = -to_moves<int>( 1_seconds + 1_seconds * fall_mod ) * weary_mult;
+    you.mod_moves( -moves_used );
     you.setpos( here, examp, false );
 
     // Pre-descent message.
@@ -11193,6 +11204,10 @@ void game::climb_down_using( const tripoint_bub_ms &examp, climbing_aid_id aid_i
             // The player has slipped and probably fallen.
             return;
         } else {
+            if( !you.has_proficiency(proficiency_prof_parkour) ) {
+                // slip_down practices proficiency as well
+                you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves(moves_used) );
+            }
             descent_pos.z()--;
             if( aid.down.deploys_furniture() ) {
                 here.furn_set( descent_pos, aid.down.deploy_furn );

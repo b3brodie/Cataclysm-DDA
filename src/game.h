@@ -1352,7 +1352,7 @@ class game
         float slip_down_chance(
             climb_maneuver maneuver,
             climbing_aid_id aid = climbing_aid_id::NULL_ID(),
-            bool show_chance_messages = true );
+            bool show_chance_messages = true ) const;
 
         /**
         * Climb down from a ledge.
