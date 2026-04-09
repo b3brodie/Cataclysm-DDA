@@ -1570,7 +1570,7 @@ void iexamine::chainfence( Character &you, const tripoint_bub_ms &examp )
         } else {
             add_msg( _( "You vault over the obstacle." ) );
             // Most common move cost for barricades pre-change.
-            move_cost = 300 - ( 200 * you.get_proficiency_practice( proficiency_prof_parkour ) );
+            move_cost = 300 - ( 200 * parkour_modifier );
             you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( move_cost / 10 ) );
         }
     } else if( you.has_trait( trait_ARACHNID_ARMS_OK ) &&
@@ -1585,7 +1585,7 @@ void iexamine::chainfence( Character &you, const tripoint_bub_ms &examp )
         add_msg( _( "This obstacle is no match for your freerunning abilities." ) );
         move_cost = 100;
     } else {
-        move_cost = 400 - ( 300 * you.get_proficiency_practice( proficiency_prof_parkour ) );
+        move_cost = 400 - ( 300 * parkour_modifier );
         if( you.has_trait( trait_BADKNEES ) ) {
             move_cost *= 2;
         }
