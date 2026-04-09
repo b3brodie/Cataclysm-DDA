@@ -7840,7 +7840,7 @@ int Character::impact( const int force, const tripoint_bub_ms &p )
         }
     }
 
-    if( !has_proficiency(proficiency_prof_parkour) ) {
+    if( !has_proficiency( proficiency_prof_parkour ) ) {
         practice_proficiency( proficiency_prof_parkour, 1_seconds );
     }
 

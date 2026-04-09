@@ -7779,9 +7779,10 @@ bool game::walk_move( const tripoint_bub_ms &dest_loc, const bool via_ramp,
                         here.has_flag_ter_or_furn( ter_furn_flag::TFLAG_FUNGUS,
                                 dest_loc ); //fungal furniture has no slowing effect on Mycus characters
     bool is_slowed_by_parkour_inexperience = false;
-    if ( !u.has_proficiency( proficiency_prof_parkour ) && ( mcost_to > 2 || mcost_from > 2 ) && !( mcost_to > 4 || mcost_from > 4 ) ) {
+    if( !u.has_proficiency( proficiency_prof_parkour ) && ( mcost_to > 2 || mcost_from > 2 ) &&
+        !( mcost_to > 4 || mcost_from > 4 ) ) {
         is_slowed_by_parkour_inexperience = true;
-        u.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves(mcost) );
+        u.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( mcost ) );
     }
     const bool slowed = ( is_slowed_by_parkour_inexperience ||
                           mcost_to > 4 || mcost_from > 4 ) ||
@@ -11204,9 +11205,9 @@ void game::climb_down_using( const tripoint_bub_ms &examp, climbing_aid_id aid_i
             // The player has slipped and probably fallen.
             return;
         } else {
-            if( !you.has_proficiency(proficiency_prof_parkour) ) {
+            if( !you.has_proficiency( proficiency_prof_parkour ) ) {
                 // slip_down practices proficiency as well
-                you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves(moves_used) );
+                you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( moves_used ) );
             }
             descent_pos.z()--;
             if( aid.down.deploys_furniture() ) {
