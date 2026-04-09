@@ -7779,7 +7779,7 @@ bool game::walk_move( const tripoint_bub_ms &dest_loc, const bool via_ramp,
                         here.has_flag_ter_or_furn( ter_furn_flag::TFLAG_FUNGUS,
                                 dest_loc ); //fungal furniture has no slowing effect on Mycus characters
     bool is_slowed_by_parkour_inexperience = false;
-    if ( !u.has_proficiency( proficiency_prof_parkour ) && ( mcost_to > 2 || mcost_from > 2 ) ) {
+    if ( !u.has_proficiency( proficiency_prof_parkour ) && ( mcost_to > 2 || mcost_from > 2 ) && !( mcost_to > 4 || mcost_from > 4 ) ) {
         is_slowed_by_parkour_inexperience = true;
         u.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves(mcost) );
     }
@@ -10767,17 +10767,17 @@ float game::slip_down_chance( climb_maneuver, climbing_aid_id aid_id,
         slip = 0;
     }
 
+    slip = slip * ( badknees ? 2 : 1 ) / ( 1 + u.get_proficiency_practice( proficiency_prof_parkour ) );
+
     if( parkour && badknees ) {
         if( show_chance_messages ) {
             add_msg( m_info, _( "Your skill in parkour makes up for your bad knees while climbing." ) );
         }
     } else if( parkour ) {
-        slip /= 2;
         if( show_chance_messages ) {
             add_msg( m_info, _( "Your skill in parkour makes it easier to climb." ) );
         }
     } else if( badknees ) {
-        slip *= 2;
         if( show_chance_messages ) {
             add_msg( m_info, _( "Your bad knees make it difficult to climb." ) );
         }

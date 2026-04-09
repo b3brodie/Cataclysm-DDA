@@ -6086,8 +6086,9 @@ std::vector<run_cost_effect> Character::run_cost_effects( float &movecost ) cons
                               1 );
         run_cost_effect_mul( obstacle_mult, _( "Obstacle Muts." ) );
 
-        if( has_proficiency( proficiency_prof_parkour ) && !is_prone() ) {
-            run_cost_effect_mul( 0.5, _( "Parkour" ) );
+        float parkour_mult = get_proficiency_practice( proficiency_prof_parkour );
+        if( parkour_mult > 0.0 && !is_prone() ) {
+            run_cost_effect_mul( 1 - ( 0.5 * parkour_mult ), _( "Parkour" ) );
         }
 
 
@@ -7724,9 +7725,7 @@ float Character::fall_damage_mod() const
     // 100% damage at 0, 75% at 10, 50% at 20 and so on
     ret *= ( 100.0f - ( dex_dodge * 4.0f ) ) / 100.0f;
 
-    if( has_proficiency( proficiency_prof_parkour ) ) {
-        ret *= 2.0f / 3.0f;
-    }
+    ret *= 1 - ( ( 1.0f / 3.0f ) * get_proficiency_practice( proficiency_prof_parkour ) );
 
     // TODO: Bonus for Judo, mutations. Penalty for heavy weight (including mutations)
 
