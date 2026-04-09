@@ -1571,7 +1571,7 @@ void iexamine::chainfence( Character &you, const tripoint_bub_ms &examp )
             add_msg( _( "You vault over the obstacle." ) );
             // Most common move cost for barricades pre-change.
             move_cost = 300 - ( 200 * you.get_proficiency_practice( proficiency_prof_parkour ) );
-            you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( move_cost / 100 ) );
+            you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( move_cost / 10 ) );
         }
     } else if( you.has_trait( trait_ARACHNID_ARMS_OK ) &&
                !you.wearing_fitting_on( bodypart_id( "torso" ) ) ) {
@@ -1589,7 +1589,7 @@ void iexamine::chainfence( Character &you, const tripoint_bub_ms &examp )
         if( you.has_trait( trait_BADKNEES ) ) {
             move_cost *= 2;
         }
-        you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( move_cost / 100 ) );
+        you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( move_cost / 10 ) );
         if( g->slip_down( game::climb_maneuver::over_obstacle, climbing_aid_furn_CLIMBABLE ) ) {
             you.mod_moves( -move_cost );
             return;

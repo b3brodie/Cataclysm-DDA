@@ -7782,7 +7782,7 @@ bool game::walk_move( const tripoint_bub_ms &dest_loc, const bool via_ramp,
     if( !u.has_proficiency( proficiency_prof_parkour ) && ( mcost_to > 2 || mcost_from > 2 ) &&
         !( mcost_to > 4 || mcost_from > 4 ) ) {
         is_slowed_by_parkour_inexperience = true;
-        u.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( mcost ) );
+        u.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( 10 * mcost ) );
     }
     const bool slowed = ( is_slowed_by_parkour_inexperience ||
                           mcost_to > 4 || mcost_from > 4 ) ||
@@ -8132,7 +8132,7 @@ point_rel_sm game::place_player( const tripoint_bub_ms &dest_loc, bool quick )
             }
         } else {
             if( !u.has_proficiency( proficiency_prof_parkour ) ) {
-                u.practice_proficiency( proficiency_prof_parkour, 1_seconds );
+                u.practice_proficiency( proficiency_prof_parkour, 10_seconds );
             }
             if( u.get_hp() > sharp_damage ) {
                 const bodypart_id bp = u.get_random_body_part();
@@ -10903,7 +10903,7 @@ bool game::slip_down( climb_maneuver maneuver, climbing_aid_id aid_id,
             add_msg( m_bad, _( "Climbing is impossible in your current state." ) );
         }
         if( !u.has_proficiency( proficiency_prof_parkour ) ) {
-            u.practice_proficiency( proficiency_prof_parkour, 1_seconds );
+            u.practice_proficiency( proficiency_prof_parkour, 10_seconds );
         }
         // Check for traps and gravity if climbing up or down.
         if( maneuver != climb_maneuver::over_obstacle ) {
@@ -11207,7 +11207,7 @@ void game::climb_down_using( const tripoint_bub_ms &examp, climbing_aid_id aid_i
         } else {
             if( !you.has_proficiency( proficiency_prof_parkour ) ) {
                 // slip_down practices proficiency as well
-                you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( moves_used ) );
+                you.practice_proficiency( proficiency_prof_parkour, time_duration::from_moves( 10 * moves_used ) );
             }
             descent_pos.z()--;
             if( aid.down.deploys_furniture() ) {
