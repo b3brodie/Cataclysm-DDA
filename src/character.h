@@ -48,6 +48,7 @@
 #include "player_activity.h"
 #include "pocket_type.h"
 #include "point.h"
+#include "proficiency.h"
 #include "ranged.h"
 #include "ret_val.h"
 #include "sleep.h"
@@ -78,7 +79,6 @@ class ma_technique;
 class map;
 class player_morale;
 class profession;
-class proficiency_set;
 class recipe;
 class recipe_subset;
 class spell;
@@ -96,14 +96,12 @@ struct pick_info;
 } // namespace Pickup
 
 enum action_id : int;
-enum class proficiency_bonus_type : int;
 enum class recipe_filter_flags : int;
 enum class steed_type : int;
 enum npc_attitude : int;
 struct bionic;
 struct construction;
 struct dealt_projectile_attack;
-struct display_proficiency;
 /// @brief Item slot used to apply modifications from food and meds
 struct islot_comestible;
 struct item_comp;
@@ -122,6 +120,14 @@ template <typename E> struct enum_traits;
 
 using bionic_uid = unsigned int;
 
+const int CHARACTER_STAT_MIN = 4;
+const int CHARACTER_STAT_MAX = 20;
+
+const int CHARACTER_AGE_MIN = 16;
+const int CHARACTER_AGE_MAX = 55;
+
+const int NAME_CHARACTER_LIMIT = 50;
+
 extern int character_max_str;
 extern int character_max_dex;
 extern int character_max_per;
@@ -139,11 +145,7 @@ enum vision_modes {
     NIGHTVISION_1,
     NIGHTVISION_2,
     NIGHTVISION_3,
-    FULL_ELFA_VISION,
-    ELFA_VISION,
     CEPH_VISION,
-    /// mutate w/ id "FEL_NV" & name "Feline Vision" see pretty well at night
-    FELINE_VISION,
     /// Bird mutation named "Avian Eyes": Perception +4
     BIRD_EYE,
     /// mutate w/ id "URSINE_EYE" & name "Ursine Vision" see better in dark, nearsight in light
@@ -2217,8 +2219,12 @@ class Character : public Creature, public visitable
          * @param obj item to be reloaded. By design any currently loaded ammunition or magazine is ignored
          * @param empty whether empty magazines should be considered as possible ammo
          * @param radius adjacent map/vehicle tiles to search. 0 for only player tile, -1 for only inventory
+         * @param now if true, only match candidates that can actually be loaded into obj right now
+         *        (i.e. obj has capacity for them); if false, match any type-compatible candidate
+         *        regardless of current capacity.
          */
-        std::vector<item_location> find_ammo( const item &obj, bool empty = true, int radius = 1 ) const;
+        std::vector<item_location> find_ammo( const item &obj, bool empty = true, int radius = 1,
+                                              bool now = true ) const;
 
         /**
          * Searches for weapons and magazines that can be reloaded.
@@ -3606,6 +3612,10 @@ class Character : public Creature, public visitable
                                              const tripoint_bub_ms &src_pos = tripoint_bub_ms::zero,
                                              int radius = PICKUP_RANGE, bool clear_path = true ) const;
         void invalidate_crafting_inventory();
+        // Efficiently query book proficiency bonuses from nearby items
+        // without rebuilding the full crafting inventory.
+        // Walks map tiles and vehicle cargo in range, plus character inventory.
+        book_proficiency_bonuses book_bonuses_nearby( int radius = PICKUP_RANGE ) const;
 
         /** Returns a value from 1.0 to 11.0 that acts as a multiplier
          * for the time taken to perform tasks that require detail vision,
@@ -4307,6 +4317,12 @@ template<>
 struct enum_traits<character_stat> {
     static constexpr character_stat last = character_stat::DUMMY_STAT;
 };
+
+namespace io
+{
+std::string enum_to_full_string( character_stat data );
+} // namespace io
+
 /// Get translated name of a stat
 std::string get_stat_name( character_stat Stat );
 #endif // CATA_SRC_CHARACTER_H

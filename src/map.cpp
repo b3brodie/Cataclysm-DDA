@@ -4988,7 +4988,7 @@ double map::shoot( const tripoint_bub_ms &p, projectile &proj, const bool hit_it
         debugmsg( "Called map::shoot on out-of-bounds tile %s", p.to_string() );
         return 0;
     }
-    // TODO: make bashing better a destroying, worse at penetrating
+    // TODO: make bashing better at destroying, worse at penetrating
     std::map<damage_type_id, float> dmg_by_type {};
     damage_instance &impact = proj.multishot ? proj.shot_impact : proj.impact;
     for( const damage_unit &dam : impact ) {
@@ -8500,6 +8500,29 @@ bool map::accessible_items( const tripoint_bub_ms &t ) const
 {
     return !has_flag( ter_furn_flag::TFLAG_SEALED, t ) ||
            has_flag( ter_furn_flag::TFLAG_LIQUIDCONT, t );
+}
+
+void map::for_each_reachable_item( const tripoint_bub_ms &center, int radius,
+                                   const Character *ch,
+                                   const std::function<void( const item & )> &fn )
+{
+    for( const tripoint_bub_ms &p : reachable_flood_steps( center, radius, 1, 100 ) ) {
+        if( accessible_items( p ) ) {
+            for( const item &it : i_at( p ) ) {
+                if( ch && !it.is_owned_by( *ch, true ) ) {
+                    continue;
+                }
+                if( !it.made_of( phase_id::LIQUID ) ) {
+                    fn( it );
+                }
+            }
+        }
+        if( const std::optional<vpart_reference> vp = veh_at( p ).cargo() ) {
+            for( const item &it : vp->items() ) {
+                fn( it );
+            }
+        }
+    }
 }
 
 std::vector<tripoint_bub_ms> map::get_dir_circle( const tripoint_bub_ms &f,

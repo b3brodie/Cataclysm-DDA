@@ -6698,7 +6698,7 @@ static void add_disassemblables( uilist &menu,
             }
             menu.addentry_col( menu_index++, true, hotkey, msg,
                                to_string_clipped( uncraft_recipe.time_to_craft( get_player_character(),
-                                                  recipe_time_flag::ignore_proficiencies ) ) );
+                                                  {}, recipe_time_flag::ignore_proficiencies ) ) );
             hotkey = std::nullopt;
         }
     }
@@ -6867,7 +6867,7 @@ void game::butcher( const std::optional<tripoint_bub_ms> &p )
                 }
 
                 const int time = uncraft_recipe.time_to_craft_moves(
-                                     get_player_character(), recipe_time_flag::ignore_proficiencies );
+                                     get_player_character(), {}, recipe_time_flag::ignore_proficiencies );
                 time_to_disassemble_once += time * stack.second;
                 if( stack.first->typeId() == itype_disassembly ) {
                     item test( uncraft_recipe.result(), calendar::turn, 1 );
@@ -11456,6 +11456,7 @@ void avatar_moves( const tripoint_abs_ms &old_abs_pos, const avatar &u, const ma
         const oter_id &cur_ter = overmap_buffer.ter( new_abs_omt );
         const oter_id &past_ter = overmap_buffer.ter( old_abs_omt );
         get_event_bus().send<event_type::avatar_enters_omt>( new_abs_omt.raw(), cur_ter );
+        overmap_buffer.add_extra_note( new_abs_omt );
         // if the player has moved omt then might trigger an EOC for that OMT
         if( !past_ter->get_exit_EOC().is_null() ) {
             dialogue d( get_talker_for( get_avatar() ), nullptr );

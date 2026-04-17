@@ -2324,6 +2324,21 @@ npc &npc::get_trade_delegate()
     return *this;
 }
 
+const npc &npc::get_trade_delegate() const
+{
+    if( !has_trait( trait_INTERCOM_OPERATOR ) ) {
+        return *this;
+    }
+    const faction_id fac = get_fac_id();
+    for( const npc *guy : g->get_npcs_if( [&fac]( const npc & n ) {
+    return n.has_trait( trait_TRADE_BACKEND ) &&
+               n.get_fac_id() == fac;
+    } ) ) {
+        return *guy;
+    }
+    return *this;
+}
+
 void npc::reconcile_schedule()
 {
     if( myclass.is_null() ) {
@@ -2346,7 +2361,7 @@ void npc::reconcile_schedule()
         if( !needs_food() ) {
             set_sleepiness( 0 );
         }
-        ai_cache.committed_goal.clear();
+        clear_committed_goal();
     } else if( !on_shift && !in_sleep_state() && !needs_food() ) {
         if( get_sleepiness() < static_cast<int>( sleepiness_levels::TIRED ) ) {
             set_sleepiness( sleepiness_levels::TIRED );
@@ -3389,8 +3404,10 @@ void npc::on_unload()
 
 void npc::update_bodytemp_and_wetness()
 {
-    update_bodytemp();
-    update_body_wetness( *get_weather().weather_precise );
+    if( needs_food() ) {
+        update_bodytemp();
+        update_body_wetness( *get_weather().weather_precise );
+    }
 }
 
 // A throtled version of player::update_body since npc's don't need to-the-turn updates.
@@ -3519,7 +3536,7 @@ void npc::on_load( map *here )
             chair_pos = std::nullopt;
             wander_pos = std::nullopt;
             clear_destination();
-            set_committed_goal( "" );
+            clear_committed_goal();
             chatbin.first_topic = "TALK_FRIEND_CAMP_RESIDENT";
         }
     }

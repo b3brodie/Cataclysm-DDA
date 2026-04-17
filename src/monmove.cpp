@@ -70,6 +70,7 @@ static const efftype_id effect_grabbed( "grabbed" );
 static const efftype_id effect_harnessed( "harnessed" );
 static const efftype_id effect_immobilization( "immobilization" );
 static const efftype_id effect_led_by_leash( "led_by_leash" );
+static const efftype_id effect_monster_locked_on( "monster_locked_on" );
 static const efftype_id effect_no_sight( "no_sight" );
 static const efftype_id effect_operating( "operating" );
 static const efftype_id effect_pacified( "pacified" );
@@ -515,6 +516,11 @@ void monster::plan()
     std::bitset<OVERMAP_LAYERS> seen_levels = here.get_inter_level_visibility( posz() );
     monster_attitude mood = attitude();
     Character &player_character = get_player_character();
+    // If this monster locks on via LoS, refresh the locked-on tracking effect
+    if( has_flag( mon_flag_LOCKS_ON ) &&
+        sees( here, player_character.pos_bub( here ), true ) ) {
+        add_effect( effect_monster_locked_on, 2_minutes );
+    }
     // If we can see the player, move toward them or flee.
     if( friendly == 0 && seen_levels.test( player_character.posz() + OVERMAP_DEPTH ) &&
         sees( here, player_character ) ) {
@@ -1034,7 +1040,8 @@ void monster::move()
     bool try_to_move = false;
     creature_tracker &creatures = get_creature_tracker();
 
-    for( const tripoint_bub_ms &dest : here.points_in_radius( pos_bub(), 1 ) ) {
+    // Check z-level neighbors too so creatures on stairs aren't falsely stuck
+    for( const tripoint_bub_ms &dest : here.points_in_radius( pos_bub(), 1, 1 ) ) {
         if( dest != pos_bub() ) {
             if( can_move_to( dest ) &&
                 creatures.creature_at( dest, true ) == nullptr ) {
@@ -1194,8 +1201,13 @@ void monster::move()
                 }
 
                 // If we're trying to go up but can't fly, check if we can climb. If we can't, then don't
-                // This prevents non-climb/fly enemies running up walls
-                if( candidate.z() > pos_abs().z() && !( via_ramp || flies() ) ) {
+                // This prevents non-climb/fly enemies running up walls.
+                // Regular stairs (GOES_UP without DIFFICULT_Z) are traversable by any creature,
+                // consistent with can_reach_to(). Ladders, ropes, and scaffolding (DIFFICULT_Z)
+                // still require climbing ability.
+                if( candidate.z() > pos_abs().z() && !( via_ramp || flies() ) &&
+                    !( here.has_flag( ter_furn_flag::TFLAG_GOES_UP, pos_bub() ) &&
+                       !here.has_flag( ter_furn_flag::TFLAG_DIFFICULT_Z, pos_bub() ) ) ) {
                     if( !can_climb() || !here.has_floor_or_support( candidate ) ) {
                         if( !here.has_flag( ter_furn_flag::TFLAG_SWIMMABLE, pos_bub() ) ||
                             !here.has_flag( ter_furn_flag::TFLAG_SWIMMABLE, candidate ) ) {

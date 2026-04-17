@@ -432,7 +432,7 @@ void talk_function::assign_guard( npc &p )
     p.chatbin.first_topic = p.assigned_camp
                             ? "TALK_FRIEND_GUARD_CAMP"
                             : p.chatbin.talk_friend_guard;
-    p.set_committed_goal( "" );
+    p.clear_committed_goal();
     p.set_omt_destination();
 }
 
@@ -468,7 +468,7 @@ void talk_function::assign_camp( npc &p )
         p.chair_pos = std::nullopt;
         p.wander_pos = std::nullopt;
         p.clear_destination();
-        p.set_committed_goal( "" );
+        p.clear_committed_goal();
     }
 }
 
@@ -478,9 +478,18 @@ void talk_function::return_to_camp_duties( npc &p )
     p.set_mission( NPC_MISSION_CAMP_RESIDENT );
     p.guard_pos = std::nullopt;
     p.clear_ai_guard_pos();
-    p.set_committed_goal( "" );
+    p.clear_committed_goal();
     p.chatbin.first_topic = "TALK_FRIEND_CAMP_RESIDENT";
-    if( p.assigned_camp && p.pos_abs_omt() != *p.assigned_camp ) {
+    // Check whether the NPC is already within the camp footprint
+    // (including expansion tiles), not just the base OMT.
+    bool at_camp = false;
+    if( p.assigned_camp ) {
+        std::optional<basecamp *> bcp = overmap_buffer.find_camp( p.assigned_camp->xy() );
+        at_camp = ( bcp && *bcp )
+                  ? ( *bcp )->point_within_camp( p.pos_abs_omt() )
+                  : p.pos_abs_omt() == *p.assigned_camp;
+    }
+    if( p.assigned_camp && !at_camp ) {
         p.goal = *p.assigned_camp;
         tripoint_abs_omt surface = p.pos_abs_omt();
         surface.z() = 0;
@@ -514,7 +523,7 @@ void talk_function::stop_guard( npc &p )
     p.goal = npc::no_goal_point;
     p.guard_pos = std::nullopt;
     p.clear_ai_guard_pos();
-    p.set_committed_goal( "" );
+    p.clear_committed_goal();
     // assigned_camp is preserved: the NPC remembers their camp while following.
     // Player can send them back via "Go back to your camp" in follower dialogue.
 }

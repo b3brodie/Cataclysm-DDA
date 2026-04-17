@@ -520,11 +520,7 @@
         "volume_encumber_modifier": 0
       }
     ],
-    "passive_effects": [
-      { "id": "nvg_great" },
-      { "id": "THERMAL_VISION_GOOD" },
-      { "has": "WORN", "condition": "ACTIVE", "values": [ { "value": "WEAPON_DISPERSION", "add": -0.25 } ] }
-    ]
+    "passive_effects": [ { "id": "nvg_great" }, { "id": "THERMAL_VISION_GOOD" }, { "id": "AR_targeting_system" } ]
   },
   {
     "id": "robofac_robotrig",
@@ -1207,7 +1203,7 @@
     "description": "Often called a \"woobie\" by soldiers, this sleeping bag-like poncho liner can be attached under a poncho or used as a blanket.  This one is made of space-age metallized polyethylene terephthalate, or MPET, the same reflective material used on spacecraft, spacesuits, emergency blankets, and mundane food packaging.  The Hub 01 logo is stamped on one corner.  It folds into a very compact form when not in use.",
     "price": "50 USD",
     "price_postapoc": "50 cent",
-    "material": [ "plastic", "aluminum" ],
+    "material": [ { "type": "plastic", "portion": 99 }, { "type": "aluminum", "portion": 1 } ],
     "weight": "50 g",
     "volume": "200 ml",
     "warmth": 10,
@@ -1431,11 +1427,7 @@
       { "covers": [ "head" ], "coverage": 100, "encumbrance_modifiers": [ "RESTRICTS_NECK", "WELL_SUPPORTED" ] },
       { "covers": [ "eyes" ], "rigid_layer_only": true, "coverage": 100, "encumbrance": 0 }
     ],
-    "passive_effects": [
-      { "id": "nvg_great" },
-      { "id": "THERMAL_VISION_GOOD" },
-      { "has": "WORN", "condition": "ACTIVE", "values": [ { "value": "WEAPON_DISPERSION", "add": -0.25 } ] }
-    ]
+    "passive_effects": [ { "id": "nvg_great" }, { "id": "THERMAL_VISION_GOOD" }, { "id": "AR_targeting_system" } ]
   },
   {
     "id": "robofac_lens_mask_bal",

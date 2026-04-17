@@ -1248,10 +1248,13 @@ nc_color item::color_in_inventory( const Character *const ch ) const
         // ltred if you have ammo but no mags
         // Gun with integrated mag counts as both
         for( const ammotype &at : ammo_types() ) {
-            // get_ammo finds uncontained ammo, find_ammo finds ammo in magazines
+            // get_ammo finds uncontained ammo, find_ammo finds ammo in magazines.
+            // Pass now=false: we want "does the player possess compatible ammo/mags?",
+            // not "can this be reloaded right this second?".
             bool has_ammo = !player_character.get_ammo( at ).empty() ||
-                            !player_character.find_ammo( *this, false, -1 ).empty();
-            bool has_mag = magazine_integral() || !player_character.find_ammo( *this, true, -1 ).empty();
+                            !player_character.find_ammo( *this, false, -1, false ).empty();
+            bool has_mag = magazine_integral() ||
+                           !player_character.find_ammo( *this, true, -1, false ).empty();
             if( has_ammo && has_mag ) {
                 ret = c_green;
                 break;
@@ -1290,7 +1293,9 @@ nc_color item::color_in_inventory( const Character *const ch ) const
         [this]( const item & it ) {
             return it.magazine_compatible().count( typeId() ) > 0;
         } );
-        bool has_ammo = !player_character.find_ammo( *this, false, -1 ).empty();
+        // Pass now=false so a full magazine still counts as "you have ammo for it"
+        // when the player is still carrying spare loose rounds of the same type.
+        bool has_ammo = !player_character.find_ammo( *this, false, -1, false ).empty();
         if( has_gun && has_ammo ) {
             ret = c_green;
         } else if( has_gun || has_ammo ) {
@@ -4982,14 +4987,15 @@ const cata::value_ptr<islot_comestible> &item::get_comestible() const
 int item::get_recursive_disassemble_moves( const Character &guy ) const
 {
     int moves = recipe_dictionary::get_uncraft( type->get_id() ).time_to_craft_moves( guy,
-                recipe_time_flag::ignore_proficiencies );
+                {}, recipe_time_flag::ignore_proficiencies );
     std::vector<item_comp> to_be_disassembled = get_uncraft_components();
     while( !to_be_disassembled.empty() ) {
         item_comp current_comp = to_be_disassembled.back();
         to_be_disassembled.pop_back();
         const recipe &r = recipe_dictionary::get_uncraft( current_comp.type->get_id() );
         if( r.ident() != recipe_id::NULL_ID() ) {
-            moves += r.time_to_craft_moves( guy ) * current_comp.count;
+            moves += r.time_to_craft_moves( guy,
+                                            crafting_cost_context::for_proficiencies( guy ) ) * current_comp.count;
             std::vector<item_comp> components = item( current_comp.type->get_id() ).get_uncraft_components();
             for( item_comp &component : components ) {
                 component.count *= current_comp.count;

@@ -26,6 +26,7 @@
 #include "item_pocket.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "npc.h"
 #include "player_activity.h"
 #include "player_helpers.h"
 #include "pocket_type.h"
@@ -2339,6 +2340,37 @@ TEST_CASE( "cancel_activity_clears_auto_resume_for_multi_type",
              !dummy.backlog.front().auto_resume ) );
 }
 
+// When a multi-zone activity spawns a sub with can_resume=false, cancelling
+// the sub doesn't push a guard entry.  cancel_activity() must still block
+// the parent multi-zone from auto-resuming.
+TEST_CASE( "cancel_non_resumable_sub_blocks_parent_auto_resume",
+           "[zones][activities][cancel]" )
+{
+    avatar &dummy = get_avatar();
+    clear_avatar();
+    clear_map_without_vision();
+
+    // Parent multi-zone in backlog with auto_resume=true, as if it had
+    // pushed itself when assigning a sub-activity.
+    dummy.assign_activity( multi_chop_planks_activity_actor() );
+    REQUIRE( dummy.activity.is_multi_type() );
+    REQUIRE( dummy.activity.auto_resume );
+    player_activity parent = dummy.activity;
+    dummy.backlog.push_front( parent );
+
+    // Sub-activity with can_resume=false (ACT_CHOP_PLANKS).
+    dummy.activity = player_activity(
+                         chop_planks_activity_actor( 100 ) );
+    REQUIRE( !dummy.activity.can_resume() );
+    REQUIRE( dummy.backlog.front().auto_resume );
+
+    // cancel + resume -- mirrors cancel_activity_query().
+    dummy.cancel_activity();
+    dummy.resume_backlog_activity();
+
+    CHECK( !dummy.activity );
+}
+
 // #85853: selecting Vehicle Repair from zone activities freezes the game
 // when the VEHICLE_REPAIR zone is large and repair items are unavailable.
 // simulate_turn must bound per-frame work and prune checked sources.
@@ -2639,6 +2671,45 @@ TEST_CASE( "zone_sort_viewport_lifecycle", "[zones][viewport][activities]" )
         }
     }
 
+    SECTION( "deactivates when nothing to sort" ) {
+        // Remove the apple so unsorted zone is empty.
+        map_stack items_at_src = here.i_at( src_pos );
+        items_at_src.clear();
+
+        CHECK_FALSE( dummy.zone_sort_viewport.active );
+
+        dummy.assign_activity( zone_sort_activity_actor() );
+
+        // Single turn: stage_init activates viewport, stage_think finds
+        // nothing sortable, activity ends in the same do_turn call.
+        dummy.mod_moves( dummy.get_speed() );
+        while( dummy.get_moves() > 0 && dummy.activity ) {
+            dummy.activity.do_turn( dummy );
+        }
+
+        CHECK_FALSE( dummy.activity );
+        CHECK_FALSE( dummy.zone_sort_viewport.active );
+    }
+
+    SECTION( "deactivates when no matching destination zone" ) {
+        // Replace apple with something that has no destination zone.
+        map_stack items_at_src = here.i_at( src_pos );
+        items_at_src.clear();
+        here.add_item_or_charges( src_pos, item( itype_test_heavy_boulder ) );
+
+        CHECK_FALSE( dummy.zone_sort_viewport.active );
+
+        dummy.assign_activity( zone_sort_activity_actor() );
+
+        dummy.mod_moves( dummy.get_speed() );
+        while( dummy.get_moves() > 0 && dummy.activity ) {
+            dummy.activity.do_turn( dummy );
+        }
+
+        CHECK_FALSE( dummy.activity );
+        CHECK_FALSE( dummy.zone_sort_viewport.active );
+    }
+
     SECTION( "viewport_saved_zoom survives serialize roundtrip" ) {
         dummy.assign_activity( zone_sort_activity_actor() );
 
@@ -2917,4 +2988,241 @@ TEST_CASE( "zone_sort_sealed_liquid_container_is_sorted_normally",
 
     CHECK( count_items_or_charges( start_pos, itype_test_watertight_open_sealed_container_250ml,
                                    std::nullopt ) == 0 );
+}
+
+// NPCs should not use the player's personal zones as destinations when
+// sorting. Regression: an NPC camp worker with static UNSORTED zones
+// would deliver items to the avatar's personal destination zones when
+// the player stood nearby, instead of the camp's static destinations.
+TEST_CASE( "npc_zone_sorting_ignores_personal_zones", "[zones][items][activities][sorting][npc]" )
+{
+    avatar &dummy = get_avatar();
+    map &here = get_map();
+
+    clear_avatar();
+    clear_map_without_vision();
+
+    zone_manager &zm = zone_manager::get_manager();
+    zm.clear();
+
+    // NPC camp area: source and destination are static zones
+    const tripoint_bub_ms camp_pos = tripoint_bub_ms::zero + tripoint::east;
+    const tripoint_abs_ms camp_abs = here.get_abs( camp_pos );
+
+    const tripoint_bub_ms camp_dest_pos = camp_pos + tripoint::east;
+    const tripoint_abs_ms camp_dest_abs = here.get_abs( camp_dest_pos );
+    here.ter_set( camp_dest_pos, ter_t_floor );
+
+    create_tile_zone( "Camp Unsorted", zone_type_LOOT_UNSORTED, camp_abs );
+    create_tile_zone( "Camp Food", zone_type_LOOT_FOOD, camp_dest_abs );
+
+    // Avatar stands near the camp with a personal FOOD zone
+    const tripoint_bub_ms avatar_pos = camp_pos + tripoint( 0, 3, 0 );
+    const tripoint_abs_ms avatar_abs = here.get_abs( avatar_pos );
+    dummy.set_pos_abs_only( avatar_abs );
+
+    // Personal FOOD destination zone at relative (1,0,0) from avatar
+    const tripoint_rel_ms personal_dest_rel( 1, 0, 0 );
+    zm.add( "Personal Food", zone_type_LOOT_FOOD, faction_your_followers,
+            false, true, personal_dest_rel, personal_dest_rel, nullptr );
+    zm.cache_avatar_location();
+
+    const tripoint_bub_ms personal_dest_pos = avatar_pos + tripoint::east;
+    here.ter_set( personal_dest_pos, ter_t_floor );
+
+    // NPC worker at camp source
+    standard_npc worker( "Worker", camp_pos, {}, 0, 8, 8, 8, 8 );
+    worker.set_fac( faction_your_followers );
+    worker.set_pos_abs_only( camp_abs );
+    worker.wear_item( item( itype_backpack ) );
+
+    // Place food at the camp unsorted zone
+    here.add_item_or_charges( camp_pos, item( itype_test_apple ) );
+    REQUIRE( count_items_or_charges( camp_pos, itype_test_apple, std::nullopt ) == 1 );
+
+    // NPC runs zone sorting
+    worker.assign_activity( zone_sort_activity_actor() );
+    process_activity( worker );
+
+    // Item should be at the camp's static destination, not the personal zone
+    CHECK( count_items_or_charges( camp_pos, itype_test_apple, std::nullopt ) == 0 );
+    CHECK( count_items_or_charges( camp_dest_pos, itype_test_apple, std::nullopt ) == 1 );
+    CHECK( count_items_or_charges( personal_dest_pos, itype_test_apple, std::nullopt ) == 0 );
+}
+
+// When a personal zone overlaps with a static zone on the same tile,
+// NPCs should still sort to that tile (the static zone justifies it).
+TEST_CASE( "npc_zone_sorting_works_when_personal_overlaps_static",
+           "[zones][items][activities][sorting][npc]" )
+{
+    avatar &dummy = get_avatar();
+    map &here = get_map();
+
+    clear_avatar();
+    clear_map_without_vision();
+
+    zone_manager &zm = zone_manager::get_manager();
+    zm.clear();
+
+    // Camp source
+    const tripoint_bub_ms camp_pos = tripoint_bub_ms::zero + tripoint::east;
+    const tripoint_abs_ms camp_abs = here.get_abs( camp_pos );
+
+    // Camp destination adjacent to source
+    const tripoint_bub_ms camp_dest_pos = camp_pos + tripoint::east;
+    const tripoint_abs_ms camp_dest_abs = here.get_abs( camp_dest_pos );
+    here.ter_set( camp_dest_pos, ter_t_floor );
+
+    create_tile_zone( "Camp Unsorted", zone_type_LOOT_UNSORTED, camp_abs );
+    create_tile_zone( "Camp Food", zone_type_LOOT_FOOD, camp_dest_abs );
+
+    // Avatar stands so that personal FOOD zone lands exactly on
+    // the camp's static FOOD destination
+    const tripoint_bub_ms avatar_pos = camp_dest_pos + tripoint::south;
+    const tripoint_abs_ms avatar_abs = here.get_abs( avatar_pos );
+    dummy.set_pos_abs_only( avatar_abs );
+
+    // Personal FOOD zone at relative (0,-1,0) from avatar = camp_dest_pos
+    const tripoint_rel_ms personal_dest_rel( 0, -1, 0 );
+    zm.add( "Personal Food", zone_type_LOOT_FOOD, faction_your_followers,
+            false, true, personal_dest_rel, personal_dest_rel, nullptr );
+    zm.cache_avatar_location();
+
+    // NPC worker at camp source
+    standard_npc worker( "Worker", camp_pos, {}, 0, 8, 8, 8, 8 );
+    worker.set_fac( faction_your_followers );
+    worker.set_pos_abs_only( camp_abs );
+    worker.wear_item( item( itype_backpack ) );
+
+    // Place food at camp source
+    here.add_item_or_charges( camp_pos, item( itype_test_apple ) );
+    REQUIRE( count_items_or_charges( camp_pos, itype_test_apple, std::nullopt ) == 1 );
+
+    // NPC sorts -- should still deliver to camp_dest even though
+    // a personal zone overlaps it
+    worker.assign_activity( zone_sort_activity_actor() );
+    process_activity( worker );
+
+    CHECK( count_items_or_charges( camp_pos, itype_test_apple, std::nullopt ) == 0 );
+    CHECK( count_items_or_charges( camp_dest_pos, itype_test_apple, std::nullopt ) == 1 );
+}
+
+// NPCs should not pick up items from the avatar's personal UNSORTED zone
+// even when a valid static destination exists.
+TEST_CASE( "npc_zone_sorting_ignores_personal_unsorted_source",
+           "[zones][items][activities][sorting][npc]" )
+{
+    avatar &dummy = get_avatar();
+    map &here = get_map();
+
+    clear_avatar();
+    clear_map_without_vision();
+
+    zone_manager &zm = zone_manager::get_manager();
+    zm.clear();
+
+    // Avatar with a personal UNSORTED zone at relative (0,0,0)
+    const tripoint_bub_ms avatar_pos = tripoint_bub_ms::zero + tripoint::east;
+    const tripoint_abs_ms avatar_abs = here.get_abs( avatar_pos );
+    dummy.set_pos_abs_only( avatar_abs );
+
+    zm.add( "Personal Unsorted", zone_type_LOOT_UNSORTED, faction_your_followers,
+            false, true, tripoint_rel_ms::zero, tripoint_rel_ms::zero, nullptr );
+    zm.cache_avatar_location();
+
+    // Static FOOD destination 3 tiles east
+    const tripoint_bub_ms dest_pos = avatar_pos + tripoint( 3, 0, 0 );
+    here.ter_set( dest_pos, ter_t_floor );
+    create_tile_zone( "Food Dest", zone_type_LOOT_FOOD, here.get_abs( dest_pos ) );
+
+    // NPC at avatar's position (near the personal UNSORTED zone)
+    standard_npc worker( "Worker", avatar_pos, {}, 0, 8, 8, 8, 8 );
+    worker.set_fac( faction_your_followers );
+    worker.set_pos_abs_only( avatar_abs );
+    worker.wear_item( item( itype_backpack ) );
+
+    // Place food at the personal UNSORTED zone tile
+    here.add_item_or_charges( avatar_pos, item( itype_test_apple ) );
+    REQUIRE( count_items_or_charges( avatar_pos, itype_test_apple, std::nullopt ) == 1 );
+
+    // NPC sorts -- should not touch items at personal source
+    worker.assign_activity( zone_sort_activity_actor() );
+    process_activity( worker );
+
+    CHECK( count_items_or_charges( avatar_pos, itype_test_apple, std::nullopt ) == 1 );
+    CHECK( count_items_or_charges( dest_pos, itype_test_apple, std::nullopt ) == 0 );
+}
+
+// Vehicle zone refresh during sorting must not shift personal zone positions.
+TEST_CASE( "vehicle_zone_refresh_preserves_personal_zone_positions",
+           "[zones][items][activities][sorting][vehicle]" )
+{
+    avatar &dummy = get_avatar();
+    map &here = get_map();
+
+    clear_avatar();
+    clear_map_without_vision();
+    zone_manager &zm = zone_manager::get_manager();
+    zm.clear();
+
+    const tripoint_bub_ms start_pos( 60, 60, 0 );
+    dummy.setpos( here, start_pos );
+    dummy.clear_destination();
+    here.ter_set( start_pos, ter_t_floor );
+
+    const tripoint_abs_ms start_abs = here.get_abs( start_pos );
+
+    // Personal UNSORTED zone: 5x5 area centered on player
+    zm.add( "Unsorted", zone_type_LOOT_UNSORTED, faction_your_followers,
+            false, true,
+            tripoint_rel_ms( -2, -2, 0 ), tripoint_rel_ms( 2, 2, 0 ) );
+
+    // Personal LOOT_FOOD zone at offset (+2, 0)
+    zm.add( "Food", zone_type_LOOT_FOOD, faction_your_followers,
+            false, true,
+            tripoint_rel_ms( 2, 0, 0 ), tripoint_rel_ms( 2, 0, 0 ) );
+
+    // Vehicle with a loot zone so it enters zone_vehicles and
+    // refresh_zones() fires during update_vehicle_zone_cache()
+    const tripoint_bub_ms veh_pos = start_pos + tripoint( 0, -3, 0 );
+    here.ter_set( veh_pos, ter_t_floor );
+    vehicle *cart = here.add_vehicle( vehicle_prototype_test_shopping_cart,
+                                      veh_pos, 0_degrees, 0, 0 );
+    REQUIRE( cart != nullptr );
+    cart->set_owner( dummy );
+    const tripoint_abs_ms veh_abs = here.get_abs( veh_pos );
+    create_tile_zone( "VehUnsorted", zone_type_LOOT_UNSORTED, veh_abs, true );
+    REQUIRE( zm.has_vehicle( zone_type_LOOT_UNSORTED, veh_abs, faction_your_followers ) );
+
+    zm.cache_data();
+    zm.cache_vzones();
+
+    here.invalidate_map_cache( 0 );
+    here.build_map_cache( 0, true );
+
+    const tripoint_abs_ms food_abs = start_abs + tripoint( 2, 0, 0 );
+    REQUIRE( zm.has( zone_type_LOOT_FOOD, food_abs, faction_your_followers ) );
+
+    // Player walks south, cache_avatar_location updates cached_shift,
+    // then vehicle zone refresh triggers (same sequence as during sorting).
+    const tripoint_bub_ms moved_pos = start_pos + tripoint( 0, 5, 0 );
+    here.ter_set( moved_pos, ter_t_floor );
+    dummy.setpos( here, moved_pos );
+    zm.cache_avatar_location();
+
+    cart->zones_dirty = true;
+    here.invalidate_map_cache( 0 );
+    here.build_map_cache( 0, true );
+    if( here.check_vehicle_zones( 0 ) ) {
+        zm.cache_vzones();
+    }
+
+    // Personal LOOT_FOOD must still be at the original position
+    CHECK( zm.has( zone_type_LOOT_FOOD, food_abs, faction_your_followers ) );
+
+    // Shifted position must not have it
+    const tripoint_abs_ms shifted_food = here.get_abs( moved_pos ) + tripoint( 2, 0, 0 );
+    if( shifted_food != food_abs ) {
+        CHECK_FALSE( zm.has( zone_type_LOOT_FOOD, shifted_food, faction_your_followers ) );
+    }
 }
