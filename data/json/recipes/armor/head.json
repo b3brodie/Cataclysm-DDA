@@ -130,6 +130,20 @@
     "components": [ [ [ "straw_pile", 2 ], [ "withered", 2 ] ], [ [ "cordage_short", 1, "LIST" ] ] ]
   },
   {
+    "result": "counterweight_pouch",
+    "type": "recipe",
+    "activity_level": "LIGHT_EXERCISE",
+    "category": "CC_ARMOR",
+    "subcategory": "CSC_ARMOR_HEAD",
+    "skill_used": "tailor",
+    "difficulty": 3,
+    "time": "1 h",
+    "autolearn": true,
+    "reversible": { "time": "10 m" },
+    "using": [ [ "tailoring_nylon_patchwork", 2 ], [ "fastener_small", 1 ], [ "cordage_short", 4 ] ],
+    "proficiencies": [ { "proficiency": "prof_closures" }, { "proficiency": "prof_closures_waterproofing" } ]
+  },
+  {
     "result": "cowboy_hat",
     "type": "recipe",
     "activity_level": "LIGHT_EXERCISE",
@@ -399,7 +413,7 @@
     "subcategory": "CSC_ARMOR_HEAD",
     "skill_used": "fabrication",
     "difficulty": 4,
-    "time": " 2 h",
+    "time": "2 h",
     "autolearn": true,
     "proficiencies": [ { "proficiency": "prof_plasticworking" } ],
     "using": [ [ "plastic_molding", 5 ] ],
@@ -888,11 +902,7 @@
     "book_learn": [ [ "textbook_armwest", 6 ], [ "welding_book", 6 ] ],
     "using": [ [ "carbon", 3 ] ],
     "components": [ [ [ "helmet_metal_sheets_full", 1 ] ] ],
-    "proficiencies": [
-      { "proficiency": "prof_metalworking" },
-      { "proficiency": "prof_blacksmithing" },
-      { "proficiency": "prof_case_hardening" }
-    ],
+    "proficiencies": [ { "proficiency": "prof_metalworking" }, { "proficiency": "prof_blacksmithing" }, { "proficiency": "prof_hardening" } ],
     "qualities": [ { "id": "HAMMER", "level": 2 } ],
     "tools": [ [ [ "forge", 64 ] ], [ [ "metalworking_tongs_any", 1, "LIST" ] ] ]
   },
@@ -923,11 +933,7 @@
     "book_learn": [ [ "textbook_armwest", 6 ], [ "welding_book", 6 ] ],
     "using": [ [ "carbon", 3 ] ],
     "components": [ [ [ "helmet_metal_sheets", 1 ] ] ],
-    "proficiencies": [
-      { "proficiency": "prof_metalworking" },
-      { "proficiency": "prof_blacksmithing" },
-      { "proficiency": "prof_case_hardening" }
-    ],
+    "proficiencies": [ { "proficiency": "prof_metalworking" }, { "proficiency": "prof_blacksmithing" }, { "proficiency": "prof_hardening" } ],
     "qualities": [ { "id": "HAMMER", "level": 2 } ],
     "tools": [ [ [ "forge", 64 ] ], [ [ "metalworking_tongs_any", 1, "LIST" ] ] ]
   },
@@ -1801,7 +1807,7 @@
       [ [ "amplifier", 2 ] ],
       [ [ "circuit", 2 ] ],
       [ [ "e_scrap", 8 ] ],
-      [ [ "cable", 2 ] ]
+      [ [ "cable", 1 ] ]
     ]
   },
   {
@@ -1835,7 +1841,7 @@
       [ [ "amplifier", 2 ] ],
       [ [ "circuit", 2 ] ],
       [ [ "e_scrap", 8 ] ],
-      [ [ "cable", 2 ] ]
+      [ [ "cable", 1 ] ]
     ]
   },
   {
@@ -1901,7 +1907,7 @@
       [ [ "amplifier", 2 ] ],
       [ [ "circuit", 2 ] ],
       [ [ "e_scrap", 8 ] ],
-      [ [ "cable", 2 ] ]
+      [ [ "cable", 1 ] ]
     ]
   },
   {
@@ -2079,7 +2085,7 @@
     "components": [
       [ [ "cotton_patchwork", 4 ], [ "scarf", 2 ], [ "scarf_long", 1 ], [ "balclava", 1 ] ],
       [ [ "element", 2 ], [ "crude_heating_element", 3 ] ],
-      [ [ "cable", 6 ] ]
+      [ [ "cable", 2 ] ]
     ]
   },
   {
@@ -2691,7 +2697,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_leatherworking_basic", "skill_penalty": 0.15 },
-      { "proficiency": "prof_case_hardening" }
+      { "proficiency": "prof_hardening" }
     ]
   },
   {
@@ -2722,7 +2728,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_leatherworking_basic", "skill_penalty": 0.15 },
-      { "proficiency": "prof_quenching" }
+      { "proficiency": "prof_tempering" }
     ]
   },
   {
@@ -2843,7 +2849,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_leatherworking_basic", "skill_penalty": 0.15 },
-      { "proficiency": "prof_case_hardening" }
+      { "proficiency": "prof_hardening" }
     ]
   },
   {
@@ -2874,7 +2880,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_leatherworking_basic", "skill_penalty": 0.15 },
-      { "proficiency": "prof_quenching" }
+      { "proficiency": "prof_tempering" }
     ]
   },
   {
@@ -2995,7 +3001,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_leatherworking_basic", "skill_penalty": 0.15 },
-      { "proficiency": "prof_case_hardening" }
+      { "proficiency": "prof_hardening" }
     ]
   },
   {
@@ -3026,7 +3032,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_leatherworking_basic", "skill_penalty": 0.15 },
-      { "proficiency": "prof_quenching" }
+      { "proficiency": "prof_tempering" }
     ]
   },
   {
@@ -3200,7 +3206,7 @@
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_leatherworking_basic" },
       { "proficiency": "prof_armorsmithing" },
-      { "proficiency": "prof_quenching" }
+      { "proficiency": "prof_tempering" }
     ]
   },
   {
@@ -3250,7 +3256,7 @@
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_leatherworking_basic" },
       { "proficiency": "prof_armorsmithing" },
-      { "proficiency": "prof_case_hardening" }
+      { "proficiency": "prof_hardening" }
     ]
   },
   {
@@ -3415,7 +3421,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_armorsmithing" },
-      { "proficiency": "prof_quenching" }
+      { "proficiency": "prof_tempering" }
     ]
   },
   {
@@ -3464,7 +3470,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_armorsmithing" },
-      { "proficiency": "prof_case_hardening" }
+      { "proficiency": "prof_hardening" }
     ]
   },
   {
@@ -3616,7 +3622,7 @@
     "book_learn": [ [ "textbook_armwest", 6 ], [ "textbook_weparabic", 6 ] ],
     "using": [ [ "chainmail_standard", 2 ] ],
     "components": [ [ [ "ch_link_sheet", 2 ] ], [ [ "ch_chain_link", 30 ] ], [ [ "ch_wire", 1 ] ], [ [ "cotton_patchwork", 3 ] ] ],
-    "proficiencies": [ { "proficiency": "prof_chain_armour" }, { "proficiency": "prof_case_hardening" } ]
+    "proficiencies": [ { "proficiency": "prof_chain_armour" }, { "proficiency": "prof_hardening" } ]
   },
   {
     "result": "xl_ch_chainmail_face",
@@ -3761,7 +3767,7 @@
     "book_learn": [ [ "textbook_armwest", 6 ], [ "textbook_weparabic", 6 ] ],
     "using": [ [ "chainmail_standard", 2 ] ],
     "components": [ [ [ "ch_link_sheet", 2 ] ], [ [ "ch_chain_link", 40 ] ], [ [ "ch_wire", 1 ] ], [ [ "cotton_patchwork", 3 ] ] ],
-    "proficiencies": [ { "proficiency": "prof_chain_armour" }, { "proficiency": "prof_case_hardening" } ]
+    "proficiencies": [ { "proficiency": "prof_chain_armour" }, { "proficiency": "prof_hardening" } ]
   },
   {
     "result": "xl_ch_chainmail_aventail",
@@ -3920,7 +3926,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_armorsmithing" },
-      { "proficiency": "prof_quenching" },
+      { "proficiency": "prof_tempering" },
       { "proficiency": "prof_fine_metalsmithing" }
     ]
   },
@@ -3970,7 +3976,7 @@
       { "proficiency": "prof_metalworking" },
       { "proficiency": "prof_blacksmithing" },
       { "proficiency": "prof_armorsmithing" },
-      { "proficiency": "prof_case_hardening" },
+      { "proficiency": "prof_hardening" },
       { "proficiency": "prof_fine_metalsmithing" }
     ]
   },

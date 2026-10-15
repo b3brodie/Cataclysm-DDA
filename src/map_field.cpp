@@ -88,7 +88,6 @@ static const flag_id json_flag_NO_UNLOAD( "NO_UNLOAD" );
 static const furn_str_id furn_f_ash( "f_ash" );
 
 static const itype_id itype_ash( "ash" );
-static const itype_id itype_rm13_armor_on( "rm13_armor_on" );
 static const itype_id itype_rock( "rock" );
 
 static const json_character_flag json_flag_HEATSINK( "HEATSINK" );
@@ -117,7 +116,7 @@ using namespace map_field_processing;
 void map::create_burnproducts( const tripoint_bub_ms &p, const item &fuel,
                                const units::mass &burned_mass )
 {
-    const std::map<material_id, int> all_mats = fuel.made_of();
+    const std::map<material_id, int> &all_mats = fuel.made_of();
     if( all_mats.empty() ) {
         return;
     }
@@ -366,6 +365,24 @@ void map::spread_gas( field_entry &cur, const tripoint_bub_ms &p, int percent_sp
         maptile up_tile = maptile_at_internal( up );
         if( gas_can_spread_to( cur, up_tile ) && valid_move( p, up, true, true ) ) {
             gas_spread_to( cur, up_tile, up );
+        }
+    }
+}
+
+void map::furniture_terrain_emit_fields()
+{
+    if( calendar::once_every( 10_seconds ) ) {
+        for( const tripoint_bub_ms &elem : get_furn_field_locations() ) {
+            const furn_t &furn_to_emit = *furn( elem );
+            for( const emit_id &e : furn_to_emit.emissions ) {
+                emit_field( elem, e );
+            }
+        }
+        for( const tripoint_bub_ms &elem : get_ter_field_locations() ) {
+            const ter_t &ter_to_emit = *ter( elem );
+            for( const emit_id &e : ter_to_emit.emissions ) {
+                emit_field( elem, e );
+            }
         }
     }
 }
@@ -1528,9 +1545,8 @@ void map::player_in_field( Character &you )
             }
         }
         if( ft == fd_fire ) {
-            // Heatsink or suit prevents ALL fire damage.
-            if( !you.has_flag( json_flag_HEATSINK ) && !you.has_flag( json_flag_HEAT_IMMUNE ) &&
-                !you.is_wearing( itype_rm13_armor_on ) ) {
+            // Heatsink prevents ALL fire damage.
+            if( !you.has_flag( json_flag_HEATSINK ) && !you.has_flag( json_flag_HEAT_IMMUNE ) ) {
 
                 // To modify power of a field based on... whatever is relevant for the effect.
                 int adjusted_intensity = cur.get_field_intensity();
@@ -1658,9 +1674,8 @@ void map::player_in_field( Character &you )
             // A burst of flame? Only hits the legs and torso.
             if( !inside ) {
                 // Fireballs can't touch you inside a car.
-                // Heatsink or suit stops fire.
-                if( !you.has_flag( json_flag_HEATSINK ) &&
-                    !you.is_wearing( itype_rm13_armor_on ) ) {
+                // Heatsink stops fire.
+                if( !you.has_flag( json_flag_HEATSINK ) ) {
                     you.add_msg_player_or_npc( m_bad, _( "You're torched by flames!" ),
                                                _( "<npcname> is torched by flames!" ) );
                     you.deal_damage( nullptr, bodypart_id( "leg_l" ), damage_instance( damage_heat, rng( 2, 6 ) ) );
@@ -1842,7 +1857,8 @@ void map::creature_in_field( Creature &critter )
             maybe_apply_field_effect( cur_field_entry.get_intensity_level().field_effects, critter );
         }
 
-        if( cur_field_id->decrease_intensity_on_contact ) {
+        if( cur_field_id->decrease_intensity_on_contact &&
+            !critter.is_immune_field( cur_field_id ) ) {
             mod_field_intensity( critter.pos_bub(), cur_field_id, -1 );
         }
     }
@@ -2282,6 +2298,10 @@ std::vector<FieldProcessorPtr> map_field_processing::processors_for_type( const 
     }
     if( ft.id == fd_fire ) {
         processors.push_back( &field_processor_fd_fire );
+        // Removes fungal terrain and "kills it".
+        // The non-flammability of fungal terrain makes fire not spread.
+        // But fire acting as a fungicide still "clears it", as far as you can spread the fire.
+        processors.push_back( &field_processor_fd_fungicidal_gas );
     }
     if( ft.id == fd_fungal_haze ) {
         processors.push_back( &field_processor_fd_fungal_haze );

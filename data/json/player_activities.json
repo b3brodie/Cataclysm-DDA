@@ -259,6 +259,17 @@
     "auto_needs": true
   },
   {
+    "id": "ACT_CRAFT_WAIT",
+    "type": "activity_type",
+    "activity_level": "NO_EXERCISE",
+    "verb": "waiting for craft step",
+    "rooted": true,
+    "based_on": "time",
+    "can_resume": false,
+    "refuel_fires": true,
+    "auto_needs": true
+  },
+  {
     "id": "ACT_DISASSEMBLE",
     "type": "activity_type",
     "activity_level": "MODERATE_EXERCISE",
@@ -540,6 +551,22 @@
     "activity_level": "MODERATE_EXERCISE",
     "verb": "working the winch",
     "based_on": "speed"
+  },
+  {
+    "id": "ACT_OPEN_TILE",
+    "type": "activity_type",
+    "activity_level": "NO_EXERCISE",
+    "verb": "opening",
+    "based_on": "time",
+    "mute_npc_completion": true
+  },
+  {
+    "id": "ACT_CLOSE_TILE",
+    "type": "activity_type",
+    "activity_level": "NO_EXERCISE",
+    "verb": "closing",
+    "based_on": "time",
+    "mute_npc_completion": true
   },
   {
     "id": "ACT_FILL_LIQUID",

@@ -10,9 +10,14 @@ const int CHARACTER_CREATOR_TAB_COUNT = 7;
 const int CHARACTER_CREATOR_SUMMARY_LINES = 5;
 const ImGuiTableFlags_ CHARACTER_CREATOR_TABLE_FLAGS = ImGuiTableFlags_ScrollY;
 const translation CHARACTER_CREATOR_UILIST_ALL = to_translation( "ALL" );
+const translation CHARACTER_CREATOR_TRAITS_COSMETIC = to_translation( "COSMETIC" );
 const translation CHARACTER_CREATOR_TRAITS_POSITIVE = to_translation( "POSITIVE" );
 const translation CHARACTER_CREATOR_TRAITS_NEGATIVE = to_translation( "NEGATIVE" );
 const translation CHARACTER_CREATOR_TRAITS_NEUTRAL = to_translation( "NEUTRAL" );
+const translation CHARACTER_CREATOR_SCENARIOS_FORGIVING = to_translation( "FORGIVING" );
+const translation CHARACTER_CREATOR_SCENARIOS_STANDARD = to_translation( "STANDARD" );
+const translation CHARACTER_CREATOR_SCENARIOS_TOUGH = to_translation( "TOUGH" );
+const translation CHARACTER_CREATOR_SCENARIOS_CHALLENGE = to_translation( "CHALLENGE" );
 
 enum character_creator_tab : int {
     CHARCREATOR_SCENARIO,
@@ -88,12 +93,14 @@ struct character_creator_uistate {
     bool recalc_hobbies = true;
     bool recalc_hobbies_taken = true;
     bool recalc_traits = true;
+    bool recalc_skills = true;
 
     bool no_name_entered = false;
     bool scrolled_up = false;
     bool scrolled_down = false;
     bool quit_to_main_menu = false;
     bool finished_character_creator = false;
+    bool top_bar_is_open = true;
 
     void set_initial_tab( character_creator_tab first_tab );
 
@@ -108,6 +115,7 @@ struct character_creator_uistate {
     void recalc_hobby_list( const avatar &u );
     void recalc_hobbies_taken_list( const avatar &u );
     void recalc_trait_list( const avatar &u );
+    void recalc_skill_list();
 
     bool hobby_conflict_check( const avatar &u );
     void reset();
@@ -135,11 +143,13 @@ class character_creator_ui
         void update_uilist_entries();
         void upon_switching_tab();
         void update_uilist_position( ImVec2 new_position );
-        void setup_input_context( input_context &cc_ictxt );
+        // @param quick_value_change - if true, add inputs for changing a value (stat or skill)
+        void setup_input_context( input_context &cc_ictxt, bool quick_value_change );
         // @return action was handled
         bool handle_action( const std::string &action );
 
         std::shared_ptr<uilist> get_current_tab_uilist();
+        std::shared_ptr<uilist> get_tab_uilist( character_creator_tab tab );
         void set_current_tab_uilist( const std::shared_ptr<uilist> &new_uilist );
         input_context &get_current_tab_input();
         void set_current_tab_input( const input_context &new_input );
@@ -152,8 +162,8 @@ class character_creator_ui_impl : public cataimgui::window
         explicit character_creator_ui_impl( character_creator_ui *parent );
 
         void draw_top_bar( const avatar &u ) const;
-        void draw_scenarios();
-        void draw_professions();
+        void draw_scenarios() const;
+        void draw_professions() const;
         void draw_backgrounds();
         // STR, DEX, etc...
         void draw_stats();
@@ -176,10 +186,9 @@ void draw_outfit();
 void draw_height( const Character &you );
 void draw_age( const Character &you );
 void draw_blood( const Character &you );
-void draw_scenario( const avatar &you );
+void draw_scenario_profession( const avatar &you );
 void draw_time_cataclysm_start();
 void draw_time_game_start();
-void draw_profession( const avatar &you );
 void draw_location( const avatar &you );
 void draw_starting_city( const avatar &you );
 std::string get_gender_string( bool male );

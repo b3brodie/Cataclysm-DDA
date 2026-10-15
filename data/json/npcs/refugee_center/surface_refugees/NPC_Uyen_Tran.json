@@ -5,9 +5,10 @@
     "name_unique": "Uyen Tran",
     "gender": "female",
     "name_suffix": "Refugee",
+    "portrait_filename": "Named_NPC_uyen_tran",
     "class": "NC_REFUGEE_Uyen",
     "attitude": 0,
-    "mission": 3,
+    "mission": "SHOPKEEP",
     "chat": "TALK_REFUGEE_Uyen_1",
     "faction": "free_merchants",
     "mission_offered": "MISSION_REFUGEE_Uyen_1"

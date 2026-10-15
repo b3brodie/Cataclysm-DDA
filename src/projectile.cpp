@@ -56,6 +56,9 @@ projectile::projectile( const projectile &other )
 
 projectile &projectile::operator=( const projectile &other )
 {
+    if( this == &other ) {
+        return *this;
+    }
     impact = other.impact;
     speed = other.speed;
     range = other.range;
@@ -221,6 +224,8 @@ void apply_ammo_effects( Creature *source, const tripoint_bub_ms &p,
                 Creature *critter = get_creature_tracker().creature_at( p );
                 dialogue d( get_talker_for( *source ), critter == nullptr ? nullptr : get_talker_for( critter ) );
                 write_var_value( var_type::context, "proj_damage", &d, dealt_damage );
+                const tripoint_abs_ms target_location = here.get_abs( p );
+                write_var_value( var_type::context, "targeted_location", &d, target_location );
                 eoc->activate( d );
             }
 

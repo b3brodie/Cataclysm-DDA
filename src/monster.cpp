@@ -14,6 +14,7 @@
 
 #include "ascii_art.h"
 #include "avatar.h"
+#include "basecamp.h"
 #include "bodypart.h"
 #include "cached_options.h"
 #include "cata_imgui.h"
@@ -41,6 +42,7 @@
 #include "harvest.h"
 #include "imgui/imgui.h"
 #include "item.h"
+#include "item_contents.h"
 #include "item_factory.h"
 #include "item_group.h"
 #include "item_location.h"
@@ -340,8 +342,7 @@ void monster::on_move( const tripoint_abs_ms &old_pos )
         return;
     }
     g->update_zombie_pos( *this, old_pos, pos_abs() );
-    if( has_effect( effect_onfire ) ||
-        calculate_by_enchantment( type->luminance, enchant_vals::mod::LUMINATION, true ) > 0 ) {
+    if( has_effect( effect_onfire ) || luminance() > 0 ) {
         map &here = get_map();
         here.set_lightmap_cache_dirty( old_pos.z() );
         here.set_lightmap_cache_dirty( pos_bub().z() );
@@ -355,6 +356,11 @@ void monster::on_move( const tripoint_abs_ms &old_pos )
     if( has_dest() && pos_abs() == get_dest() ) {
         unset_dest();
     }
+}
+
+float monster::luminance() const
+{
+    return calculate_by_enchantment( type->luminance, enchant_vals::mod::LUMINATION, true );
 }
 
 void monster::on_effect_int_change( const efftype_id &/*eid*/, int /*intensity*/,
@@ -859,7 +865,14 @@ int monster::print_info( const catacurses::window &w, int vStart, int vLines, in
     const int max_width = getmaxx( w ) - column - 1;
     std::ostringstream oss;
 
-    oss << get_tag_from_color( c_white ) << get_origin( type->src ) << "</color>" << "\n";
+    // This header specifically refers to them as a somewhat-misleading "Creatures" instead of "Monsters".
+    // This is because many of our "Monster" objects do not represent things that are pejorative monsters.
+    // Therefore the header is intentionally *neutral* on the language.
+    mvwprintz( w, point( column, vStart++ ), c_light_blue, _( "-----CREATURE-----" ) );
+
+    if( debug_mode ) {
+        oss << get_tag_from_color( c_white ) << get_origin( type->src ) << "</color>" << "\n";
+    }
 
     if( debug_mode ) {
         oss << colorize( type->id.str(), c_white );
@@ -886,7 +899,13 @@ int monster::print_info( const catacurses::window &w, int vStart, int vLines, in
         mvwprintz( w, point( column, vStart++ ), att.second, att.first );
     }
 
-    // Awareness indicator in the third line.
+    // Difficulty indicator in the third line.
+    const std::string difficulty_str = debug_mode ?
+                                       _( "Difficulty " ) + std::to_string( type->get_total_difficulty() ) :
+                                       type->get_difficulty_description();
+    vStart += fold_and_print( w, point( column, vStart ), max_width, c_white, difficulty_str );
+
+    // Awareness indicator in the fourth line.
     std::string senses_str = sees_player ? _( "Can see to your current location" ) :
                              _( "Can't see to your current location" );
 
@@ -964,8 +983,9 @@ void monster::print_info_imgui() const
 {
     const map &here = get_map();
 
-    ImGui::TextUnformatted( get_origin( type->src ).c_str() );
-
+    if( debug_mode ) {
+        ImGui::TextUnformatted( get_origin( type->src ).c_str() );
+    }
     if( debug_mode ) {
         ImGui::TextUnformatted( type->id.c_str() );
     }
@@ -1059,11 +1079,11 @@ std::vector<std::string> monster::extended_description() const
     // exponential growth.
     tmp.reserve( 12 );
 
-    tmp.emplace_back( get_origin( type->src ) );
-    tmp.emplace_back( "--" );
-
     if( debug_mode ) {
+        tmp.emplace_back( get_origin( type->src ) );
+        tmp.emplace_back( "--" );
         tmp.emplace_back( colorize( type->id.str(), c_white ) );
+
         const std::vector<std::pair<std::string, std::string>> overlays = get_overlay_ids();
         const std::string overlay_str = enumerate_as_string(
                                             overlays.begin(), overlays.end(),
@@ -1118,6 +1138,22 @@ std::vector<std::string> monster::extended_description() const
                                        has_flag( mon_flag_IMMOBILE ) || has_flag( json_flag_CANNOT_MOVE ),
                                        type->speed_desc );
     tmp.emplace_back( speed_desc );
+
+    // Print "taming" food information
+    if( !type->petfood.food.empty() ) {
+        tmp.emplace_back( colorize( _( "Seems to be familiar with people and could be tamed with:" ),
+                                    c_light_blue ) );
+
+        for( std::string food_category : type->petfood.food ) {
+            std::vector<const itype *> food_items = Item_factory::find( [&]( const itype & t ) {
+                return t.use_methods.count( "PETFOOD" ) && t.comestible &&
+                       t.comestible->petfood.count( food_category );
+            } );
+            for( const itype *food_item_type : food_items ) {
+                tmp.emplace_back( colorize( food_item_type->nname( 1 ), c_white ) );
+            }
+        }
+    }
 
     tmp.emplace_back( "--" );
     tmp.emplace_back( string_format( "<dark>%s</dark>", type->get_description() ) );
@@ -1249,14 +1285,22 @@ std::vector<std::string> monster::extended_description() const
             tmp.emplace_back( "Lifespan end time: n/a <color_yellow>(indefinite)</color>" );
         }
 
+        if( !type->weakpoints.weakpoint_list.empty() ) {
+            tmp.emplace_back( colorize( "weakpoints:", c_white ) );
+            for( const weakpoint &wp : type->weakpoints.weakpoint_list ) {
+                tmp.emplace_back( string_format( "%s - coverage %.3f", wp.id, wp.coverage ) );
+            }
+        }
+
         const std::vector<std::reference_wrapper<const effect>> all_effects = get_effects();
         if( !all_effects.empty() ) {
             tmp.emplace_back( "Applied effects:" );
             for( const effect &eff : all_effects ) {
                 const std::string is_permanent = eff.is_permanent() ? "(permanent)" : "";
-                tmp.emplace_back( string_format( "%s (%s) %s", eff.get_id().c_str(),
-                                                 to_string_writable( eff.get_duration() ).c_str(),
-                                                 is_permanent.c_str() ) );
+                tmp.emplace_back( string_format( "%s [%d] (%s) %s", eff.get_id().c_str(),
+                                                 eff.get_intensity(),
+                                                 to_string_writable( eff.get_duration() ),
+                                                 is_permanent ) );
             }
         }
     }
@@ -1646,7 +1690,23 @@ bool monster::is_fleeing( Character &u ) const
         return false;
     }
     monster_attitude att = attitude( &u );
-    return att == MATT_FLEE || ( att == MATT_FOLLOW && rl_dist( pos_bub(), u.pos_bub() ) <= 4 );
+    if( att == MATT_FLEE ) {
+        return true;
+    }
+    if( att != MATT_FOLLOW ) {
+        return false;
+    }
+    // Scale vertical separation for fliers (one z is roughly four meters).
+    constexpr int FLIER_Z_PENALTY = 4;
+    int effective;
+    if( flies() ) {
+        const int xy = rl_dist( pos_bub().xy(), u.pos_bub().xy() );
+        const int z_diff = std::abs( pos_abs().z() - u.pos_abs().z() );
+        effective = xy + z_diff * FLIER_Z_PENALTY;
+    } else {
+        effective = rl_dist( pos_bub(), u.pos_bub() );
+    }
+    return effective <= 4;
 }
 
 Creature::Attitude monster::attitude_to( const Creature &other ) const
@@ -2099,9 +2159,43 @@ bool monster::is_dead_state() const
     return hp <= 0;
 }
 
-bool monster::block_hit( Creature *, bodypart_id &, damage_instance & )
+bool monster::block_hit( Creature *, bodypart_id &, damage_instance &dam )
 {
-    return false;
+    if( blocks_left <= 0 ) {
+        return false;
+    }
+
+    --blocks_left;
+
+    if( !x_in_y( type->block.chance, 100 ) ) {
+        return false;
+    }
+
+    bool blocked = false;
+    float remaining_block = type->block.effectiveness;
+
+    for( damage_unit &elem : dam.damage_units ) {
+        if( remaining_block <= 0.0f ) {
+            break;
+        }
+
+        if( type->block.ranged || ( elem.type->physical && elem.type->melee_only ) ) {
+            const float block_amount = std::min( remaining_block, elem.amount );
+
+            elem.amount -= block_amount;
+            remaining_block -= block_amount;
+
+            if( block_amount > 0.0f ) {
+                blocked = true;
+            }
+        }
+    }
+
+    if( blocked ) {
+        add_msg_if_player_sees( *this, m_warning, _( "The %s blocks the attack!" ), name() );
+    }
+
+    return blocked;
 }
 
 const weakpoint *monster::absorb_hit( const weakpoint_attack &attack, const bodypart_id &,
@@ -2902,6 +2996,8 @@ void monster::explode()
 
 void monster::process_turn()
 {
+    blocks_left = type->block.count;
+
     map &here = get_map();
     if( !is_hallucination() ) {
         for( const std::pair<const emit_id, time_duration> &e : type->emit_fields ) {
@@ -3188,8 +3284,10 @@ void monster::die( map *here, Creature *nkiller )
         }
     }
 
-    if( death_drops && !no_extra_death_drops ) {
-        drop_items_on_death( here, corpse.get_item() );
+    if( death_drops ) {
+        if( !no_extra_death_drops ) {
+            drop_items_on_death( here, corpse.get_item() );
+        }
         spawn_dissectables_on_death( corpse.get_item() );
     }
     if( death_drops && !is_hallucination() ) {
@@ -3212,6 +3310,20 @@ void monster::die( map *here, Creature *nkiller )
         }
     }
     if( corpse ) {
+        // We re-acquire killer here, in case of shenanigans earlier in the function (summoner kill credit assignment, etc)
+        Creature *killer = get_killer();
+        basecamp *camp = basecamp::any_claim_at( pos_abs_omt() );
+
+        // Corpse ownership priority: If on faction territory, the faction always owns the resulting corpse and items. No buts.
+        // If not in a faction's territory, the killer owns the resulting corpse and items.
+        // If no killer, or the killer is not in a faction, then it's set to unowned and is owned by the first person to pick it up. Finders keepers. (Standard spawned item rules)
+        // FIXME: Exodii quadrupeds/monsters/etc do not set ownership.
+        if( camp ) {
+            corpse->set_owner( camp->get_owner() );
+        } else if( killer && killer->as_character() ) {
+            corpse->set_owner( *killer->as_character() );
+        }
+
         corpse->process( *here, nullptr, corpse.pos_bub( *here ) );
         if( reality_bubble().inbounds( pos_abs() ) ) {
             corpse.make_active();
@@ -3303,6 +3415,9 @@ void monster::generate_inventory( bool disableDrops )
             if( ( it.is_armor() || it.is_pet_armor() ) && !it.is_gun() ) {
                 // handle wearable guns as a special case
                 it.set_flag( json_flag_FILTHY );
+                for( item *pocket : it.get_contents().get_added_pockets_mutable() ) {
+                    pocket->set_flag( json_flag_FILTHY );
+                }
             }
         }
         inv.push_back( it );
@@ -3342,6 +3457,9 @@ void monster::drop_items_on_death( map *here, item *corpse ) const
             if( ( it.is_armor() || it.is_pet_armor() ) && !it.is_gun() ) {
                 // handle wearable guns as a special case
                 it.set_flag( json_flag_FILTHY );
+                for( item *pocket : it.get_contents().get_added_pockets_mutable() ) {
+                    pocket->set_flag( json_flag_FILTHY );
+                }
             }
         }
 
@@ -3459,8 +3577,6 @@ void monster::process_one_effect( effect &it, bool is_new )
         effect_cache[VISION_IMPAIRED] = true;
     } else if( ( id == effect_bleed || id == effect_dripping_mechanical_fluid ) &&
                x_in_y( it.get_intensity(), it.get_max_intensity() ) ) {
-        // this is for balance only
-        it.mod_duration( -rng( 1_turns, it.get_int_dur_factor() / 2 ) );
         bleed( here );
         if( id == effect_bleed ) {
             // monsters are simplified so they just take damage from bleeding
@@ -3828,8 +3944,9 @@ bool monster::is_nemesis() const
     return has_flag( mon_flag_NEMESIS );
 }
 
-void monster::init_from_item( item &itm )
+void monster::init_from_item( item_location loc )
 {
+    item &itm = *loc;
     if( itm.is_corpse() ) {
         set_speed_base( get_speed_base() * 0.8 );
         const int burnt_penalty = itm.burnt;
@@ -3857,14 +3974,17 @@ void monster::init_from_item( item &itm )
         for( item *it : itm.all_items_top( pocket_type::CONTAINER ) ) {
             if( it->is_armor() ) {
                 it->set_flag( json_flag_FILTHY );
+                for( item *pocket : it->get_contents().get_added_pockets_mutable() ) {
+                    pocket->set_flag( json_flag_FILTHY );
+                }
             }
             inv.push_back( *it );
-            itm.remove_item( *it );
+            loc.remove_item( *it );
         }
         //Move dissectables (installed bionics, etc)
         for( item *dissectable : itm.all_items_top( pocket_type::CORPSE ) ) {
             dissectable_inv.push_back( *dissectable );
-            itm.remove_item( *dissectable );
+            loc.remove_item( *dissectable );
         }
     } else {
         // must be a robot
@@ -4069,7 +4189,22 @@ void monster::hear_sound( const tripoint_bub_ms &source, const int vol, const in
         // TODO: make the destination scale with the sound and handle
         // the case when (x,y) is the same by picking a random direction
         tripoint_abs_ms away = pos_abs() + ( pos_abs() - target );
-        away.z() = posz();
+        // Aloft fliers descend, grounded fliers take off; non-fliers stay at
+        // current z. Mirror in monster::plan.
+        int chosen_z = posz();
+        if( flies() ) {
+            map &here = get_map();
+            const tripoint_bub_ms here_bub = pos_bub();
+            const bool grounded = here.has_floor_or_water( here_bub );
+            if( !grounded &&
+                here.valid_move( here_bub, here_bub + tripoint::below, false, true ) ) {
+                chosen_z = posz() - 1;
+            } else if( grounded &&
+                       here.valid_move( here_bub, here_bub + tripoint::above, false, true ) ) {
+                chosen_z = posz() + 1;
+            }
+        }
+        away.z() = chosen_z;
         wander_to( away, wander_turns );
     }
 }

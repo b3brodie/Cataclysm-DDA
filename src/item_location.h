@@ -2,13 +2,20 @@
 #ifndef CATA_SRC_ITEM_LOCATION_H
 #define CATA_SRC_ITEM_LOCATION_H
 
+#include <climits>
+#include <cstddef>
+#include <cstdint>
+#include <functional>
 #include <list>
 #include <memory>
+#include <set>
 #include <string>
 #include <utility>
 
 #include "coords_fwd.h"
+#include "pocket_type.h"
 #include "units_fwd.h"
+#include "visitable.h"
 
 class Character;
 class JsonObject;
@@ -20,7 +27,15 @@ class pocket_constraint;
 class map;
 class map_cursor;
 class talker;
+class temp_crafting_inventory;
 class vehicle_cursor;
+
+/**
+ * Returns a reference to a null item (see @ref item::is_null). The reference is always valid
+ * and stays valid until the program ends.
+ */
+item &null_item_reference();
+
 template<typename T> class ret_val;
 
 /**
@@ -29,7 +44,7 @@ template<typename T> class ret_val;
  * Provides a generic interface of querying, obtaining and removing an item
  * Is invalidated by many operations (including copying of the item)
  */
-class item_location
+class item_location : public visitable
 {
     public:
         enum class type : int {
@@ -37,7 +52,9 @@ class item_location
             character = 1,
             map = 2,
             vehicle = 3,
-            container = 4
+            container = 4,
+            // these are ALL pseudo items of some variety!
+            crafting_inventory = 5
         };
 
         item_location();
@@ -48,12 +65,16 @@ class item_location
         item_location( const map_cursor &mc, item *which );
         item_location( const vehicle_cursor &vc, item *which );
         item_location( const item_location &container, item *which );
+        item_location( temp_crafting_inventory &inv, item *which );
+
 
         void serialize( JsonOut &js ) const;
         void deserialize( const JsonObject &obj );
 
         bool operator==( const item_location &rhs ) const;
         bool operator!=( const item_location &rhs ) const;
+        // this compares pointers! implemented for std::set implementation
+        bool operator<( const item_location &rhs ) const;
 
         explicit operator bool() const;
 
@@ -65,6 +86,8 @@ class item_location
 
         /** Returns the type of location where the item is found */
         type where() const;
+
+        bool valid() const;
 
         /** Returns the type of location where the topmost container of the item is found.
          *  Therefore can not return item_location::type::container */
@@ -94,7 +117,7 @@ class item_location
 
         /** Removes the selected item from the game
          *  @warning all further operations using this class are invalid */
-        void remove_item();
+        void remove_item( item & = null_item_reference() );
 
         /** Handles updates to the item location, mostly for caching. */
         void on_contents_changed();
@@ -114,7 +137,7 @@ class item_location
         /** returns the character whose inventory contains this item, nullptr if none **/
         Character *carrier() const;
 
-        /** returns the character whose inventory contains this item, nullptr if none **/
+        /** returns the vehicle whose inventory contains this item, nullptr if none **/
         const vehicle_cursor *veh_cursor() const;
 
         /** returns true if the item is in the inventory of the given character **/
@@ -190,6 +213,17 @@ class item_location
         */
         int get_quality( const std::string &quality, bool strict_boiling ) const;
 
+        /**
+         * Open a menu for the player to set pocket favorite settings for the pockets in the item's item_contents.
+         */
+        void favorite_settings_menu();
+
+        VisitResponse visit_contents( const std::function<VisitResponse( const item_location & )> &func,
+                                      const std::set<pocket_type> &allowed_pockets = {pocket_type::CONTAINER} ) const;
+        VisitResponse visit_items( const std::function<VisitResponse( const item_location & )> &func ) const
+        override;
+        std::list<item> remove_items_with( const std::function<bool( const item &e )> &filter,
+                                           int count = INT_MAX ) override;
     private:
         class impl;
 
@@ -198,6 +232,22 @@ class item_location
 std::unique_ptr<talker> get_talker_for( item_location &it );
 std::unique_ptr<const_talker> get_const_talker_for( const item_location &it );
 std::unique_ptr<talker> get_talker_for( item_location *it );
+
+namespace std
+{
+template <>
+struct hash<item_location> {
+    std::size_t operator()( const item_location &it ) const noexcept {
+        return static_cast<size_t>( it.where() );
+    }
+};
+} // namespace std
+
+struct item_locator_hint;
+
+// Resolve an item by its uid, starting from the hint.  Returns invalid
+// item_location if not found within the accepted resolution boundary.
+item_location find_item_by_uid( int64_t uid, const item_locator_hint &hint );
 
 using drop_location = std::pair<item_location, int>;
 using drop_locations = std::list<drop_location>;

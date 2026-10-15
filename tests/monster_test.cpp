@@ -28,6 +28,7 @@
 #include "line.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "map_helpers_tests.h"
 #include "map_iterator.h"
 #include "map_scale_constants.h"
 #include "mapdata.h"
@@ -98,6 +99,9 @@ static int moves_to_destination( const std::string &monster_type,
     return 100000;
 }
 
+namespace
+{
+
 struct track {
     char participant;
     int moves;
@@ -105,7 +109,7 @@ struct track {
     tripoint location;
 };
 
-static std::ostream &operator<<( std::ostream &os, track const &value )
+std::ostream &operator<<( std::ostream &os, track const &value )
 {
     os << value.participant <<
        " l:" << value.location <<
@@ -114,13 +118,15 @@ static std::ostream &operator<<( std::ostream &os, track const &value )
     return os;
 }
 
-static std::ostream &operator<<( std::ostream &os, const std::vector<track> &vec )
+std::ostream &operator<<( std::ostream &os, const std::vector<track> &vec )
 {
     for( const track &track_instance : vec ) {
         os << track_instance << " ";
     }
     return os;
 }
+
+} // namespace
 
 /**
  * Simulate a player running from the monster, checking if it can catch up.
@@ -132,7 +138,7 @@ static int can_catch_player( const std::string &monster_type, const tripoint &di
     REQUIRE( g->num_creatures() == 1 ); // the player
     Character &test_player = get_player_character();
     // Strip off any potentially encumbering clothing.
-    test_player.remove_worn_items_with( []( item & ) {
+    test_player.remove_worn_items_with( []( const item & ) {
         return true;
     } );
 
@@ -619,8 +625,13 @@ TEST_CASE( "monster_broken_verify", "[monster]" )
         if( montype.mdeath_effect.corpse_type != mdeath_type::BROKEN ) {
             continue;
         }
-
+        if( !montype.broken_itype.is_empty() ) {
+            CAPTURE( montype.id.c_str() );
+            CHECK( montype.broken_itype.is_valid() );
+            continue;
+        }
         // this contraption should match mdeath::broken in mondeath.cpp
+        // FIXME: Rewrite test so it doesn't use string manipulation or require broken_itype and delete it
         std::string broken_id_str = montype.id.str();
         if( broken_id_str.compare( 0, 4, "mon_" ) == 0 ) {
             broken_id_str.erase( 0, 4 );
@@ -931,6 +942,7 @@ TEST_CASE( "monster_cant_enter_reality_bubble_because_wall", "[monster][hordes]"
 {
     // Remove interacting with the player as a complication.
     clear_map_and_put_player_underground();
+    sounds::process_sounds();
     const tripoint_bub_ms destination{ 11 * 6, 11 * 6, 0 };
     // Place monster on the local overmap.monster_map just outside the reality bubble.
     map &m = get_map();

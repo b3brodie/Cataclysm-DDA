@@ -34,6 +34,7 @@
 #include "map_extras.h"
 #include "map_iterator.h"
 #include "mapbuffer.h"
+#include "mapgen_post_process.h"
 #include "math_defines.h"
 #include "messages.h"
 #include "mongroup.h"
@@ -247,13 +248,7 @@ tripoint displace( cube_direction d )
 // *** BEGIN overmap FUNCTIONS ***
 overmap::overmap( const point_abs_om &p ) : loc( p )
 {
-    const region_settings_id region_type( overmap_buffer.current_region_type );
-    if( overmap_buffer.current_region_type == "default" || !region_type.is_valid() ) {
-        const region_settings_id default_settings = overmap_buffer.get_default_settings( p ).id;
-        settings = default_settings;
-    } else {
-        settings = region_type;
-    }
+    settings = overmap_buffer.get_overmap_region( tripoint_abs_om( p, 0 ) );
     init_layers();
     hordes.set_location( loc );
 }
@@ -262,19 +257,8 @@ overmap::~overmap() = default;
 
 void overmap::populate( overmap_special_batch &enabled_specials )
 {
-    try {
-        open( enabled_specials );
-    } catch( const std::exception &err ) {
-        debugmsg( "overmap (%d,%d) failed to load: %s", loc.x(), loc.y(), err.what() );
-    }
-}
 
-void overmap::populate()
-{
     const region_settings_feature_flag &overmap_feature_flag = settings->overmap_feature_flag;
-    overmap_special_batch enabled_specials = overmap_specials::get_default_batch( loc,
-            settings->get_settings_city().city_size );
-
     const bool should_blacklist = !overmap_feature_flag.blacklist.empty();
     const bool should_whitelist = !overmap_feature_flag.whitelist.empty();
 
@@ -304,7 +288,17 @@ void overmap::populate()
             }
         }
     }
+    try {
+        open( enabled_specials );
+    } catch( const std::exception &err ) {
+        debugmsg( "overmap (%d,%d) failed to load: %s", loc.x(), loc.y(), err.what() );
+    }
+}
 
+void overmap::populate()
+{
+    overmap_special_batch enabled_specials = overmap_specials::get_default_batch( loc,
+            settings->get_settings_city().city_size );
     populate( enabled_specials );
 }
 
@@ -392,6 +386,15 @@ std::optional<mapgen_arguments> *overmap::mapgen_args( const tripoint_om_omt &p 
 {
     auto it = mapgen_args_index.find( p );
     if( it == mapgen_args_index.end() ) {
+        return nullptr;
+    }
+    return it->second;
+}
+
+std::vector<pp_resolved_generator> *overmap::pp_decisions( const tripoint_om_omt &p )
+{
+    auto it = pp_decisions_index.find( p );
+    if( it == pp_decisions_index.end() ) {
         return nullptr;
     }
     return it->second;
@@ -2087,11 +2090,14 @@ bool overmap::guess_has_lake( const point_abs_om &p, const double noise_threshol
     const om_noise::om_noise_layer_lake noise_func( origin, g->get_seed() );
 
     int lake_tiles = 0;
-    for( int i = 0; i < OMAPX; i++ ) {
+    for( int i = 0; i < OMAPX && lake_tiles < max_tile_count; i++ ) {
         for( int j = 0; j < OMAPY; j++ ) {
             const point_om_omt seed_point( i, j );
             if( omt_lake_noise_threshold( origin, seed_point, noise_threshold ) ) {
                 lake_tiles++;
+                if( lake_tiles >= max_tile_count ) {
+                    break;
+                }
             }
         }
     }
@@ -2424,7 +2430,7 @@ void overmap::place_ravines()
 
     const oter_id rift( "ravine" );
     const oter_id rift_edge( "ravine_edge" );
-    const oter_id rift_floor( "ravine_floor" );
+    const oter_id rift_floor = settings_ravine.ravine_bottom_terrain_str_id.id();
     const oter_id rift_floor_edge( "ravine_floor_edge" );
 
     std::set<point_om_omt> rift_points;
@@ -3060,6 +3066,46 @@ std::vector<tripoint_om_omt> overmap::place_special(
             safe_at_worldgen.emplace( location );
         }
     }
+
+    // Collect unique pp_generators referenced by any OMT of this special.
+    std::set<pp_generator_id> special_pp_gens;
+    for( const tripoint_om_omt &location : result.omts_used ) {
+        for( const pp_generator_id &gen_id : ter( location )->get_post_process_generators() ) {
+            special_pp_gens.insert( gen_id );
+        }
+    }
+    if( !special_pp_gens.empty() ) {
+        std::vector<pp_resolved_generator> decisions;
+        for( const pp_generator_id &gen_id : special_pp_gens ) {
+            const pp_generator &gen = gen_id.obj();
+            pp_resolved_generator resolved;
+            resolved.generator = gen_id;
+            std::map<sub_generator_type, uint8_t> type_counts;
+            for( const pp_sub_generator &sg : gen.sub_generators() ) {
+                const uint8_t ord = type_counts[sg.type];
+                if( sg.scope == pp_sub_generator_scope::overmap_special ) {
+                    pp_sub_decision dec;
+                    dec.type = sg.type;
+                    dec.ordinal = ord;
+                    dec.st = pp_sub_decision::status::not_evaluated;
+                    dec.seed = rng_bits();
+                    resolved.sub_decisions.push_back( dec );
+                }
+                type_counts[sg.type]++;
+            }
+            if( !resolved.sub_decisions.empty() ) {
+                decisions.push_back( std::move( resolved ) );
+            }
+        }
+        if( !decisions.empty() ) {
+            std::vector<pp_resolved_generator> *decisions_p =
+                &*pp_decision_storage.emplace( std::move( decisions ) );
+            for( const tripoint_om_omt &location : result.omts_used ) {
+                pp_decisions_index[location] = decisions_p;
+            }
+        }
+    }
+
     // Place spawns.
     const overmap_special_spawns &spawns = special.get_monster_spawns();
     if( spawns.group ) {
@@ -3860,12 +3906,11 @@ shared_ptr_fast<npc> overmap::find_npc_by_unique_id( const std::string &id ) con
 
 void overmap::add_camp( const point_abs_omt &p, const basecamp &camp )
 {
-    //TODO: After 0.I stable this should debugmsg on failed emplace
-    //auto it = camps.emplace( p, camp );
-    //if( !it.second ) {
-    //  debugmsg( "Tried to add a basecamp %s at %s when basecamp %s is already present", camp.camp_name(), p.to_string(), it.first->second.camp_name() );
-    //}
-    camps.emplace( p, camp );
+    auto it = camps.emplace( p, camp );
+    if( !it.second ) {
+        debugmsg( "Tried to add a basecamp %s at %s when basecamp %s is already present", camp.camp_name(),
+                  p.to_string(), it.first->second.camp_name() );
+    }
 }
 
 std::optional<basecamp *> overmap::find_camp( const point_abs_omt &p )

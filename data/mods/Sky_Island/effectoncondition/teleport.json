@@ -44,15 +44,8 @@
       { "u_teleport": { "global_val": "OM_temp" }, "force_safe": true },
       {
         "if": { "math": [ "si_npcs_will_join_raid == 1" ] },
-        "then": {
-          "u_travel_to_dimension": "dimension_sky_island_mission",
-          "npc_travel_radius": 10,
-          "region_type": { "global_val": "sky_island_target_region_settings" }
-        },
-        "else": {
-          "u_travel_to_dimension": "dimension_sky_island_mission",
-          "region_type": { "global_val": "sky_island_target_region_settings" }
-        }
+        "then": { "u_travel_to_dimension": { "global_val": "sky_island_target_region_settings" }, "npc_travel_radius": 10 },
+        "else": { "u_travel_to_dimension": { "global_val": "sky_island_target_region_settings" } }
       }
     ]
   },
@@ -154,6 +147,12 @@
   },
   {
     "type": "effect_on_condition",
+    "id": "EOC_SI_WHOLE_ROOM_TELEPORT_BLANK",
+    "//": "Blank EOC to allow us to find the statue location",
+    "effect": [  ]
+  },
+  {
+    "type": "effect_on_condition",
     "id": "EOC_return_OM_teleport",
     "//": "This is the EOC which actually returns you home.  It brings you home and removes all warp-related effects including warp sickness.  It heals you enough to fix broken limbs.  It also resets the awayfromhome counter to 0 so warp sickness can be tracked properly next time you're out.",
     "effect": [
@@ -166,6 +165,13 @@
         "then": [
           { "math": [ "si_bring_items_from_raid = 0" ] },
           { "u_location_variable": { "context_val": "loc" } },
+          {
+            "u_map_run_eocs": "EOC_SI_WHOLE_ROOM_TELEPORT_BLANK",
+            "range": 2,
+            "stop_at_first": true,
+            "store_coordinates_in": { "context_val": "loc" },
+            "condition": { "map_furniture_id": "f_returnportal", "loc": { "context_val": "loc" } }
+          },
           {
             "u_map_run_item_eocs": "all",
             "loc": { "context_val": "loc" },
@@ -200,12 +206,7 @@
         "fail_message": "It seems the portal couldn't find a valid location.",
         "force_safe": true
       },
-      {
-        "u_travel_to_dimension": "default",
-        "npc_travel_radius": 10,
-        "item_travel_radius": 10,
-        "region_type": "default"
-      },
+      { "u_travel_to_dimension": "default", "npc_travel_radius": 10, "item_travel_radius": 10 },
       { "u_remove_item_with": "warphome" },
       { "u_remove_item_with": "warp_healing_salve" },
       { "u_remove_item_with": "warpextender" },
@@ -225,7 +226,7 @@
           "EOC_return_heal"
         ]
       },
-      { "clear_dimension": "dimension_sky_island_mission" },
+      { "clear_dimension": { "global_val": "sky_island_target_region_settings" } },
       {
         "if": { "math": [ "skyisland_merchant_stall == 1" ] },
         "then": { "run_eocs": "EOC_SKY_ISLAND_RANDOM_MERCHANTS" }

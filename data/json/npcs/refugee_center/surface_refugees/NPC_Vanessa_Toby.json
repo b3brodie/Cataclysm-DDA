@@ -5,9 +5,10 @@
     "name_unique": "Vanessa Toby",
     "gender": "female",
     "name_suffix": "Refugee",
+    "portrait_filename": "Named_NPC_vanessa_toby",
     "class": "NC_REFUGEE_Vanessa",
     "attitude": 0,
-    "mission": 7,
+    "mission": "GUARD",
     "chat": "TALK_REFUGEE_Vanessa_1",
     "faction": "free_merchants",
     "mission_offered": "MISSION_REFUGEE_Vanessa_1"

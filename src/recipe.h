@@ -16,6 +16,7 @@
 
 #include "build_reqs.h"
 #include "calendar.h"
+#include "crafting_enums.h"
 #include "proficiency.h"
 #include "requirements.h"
 #include "translation.h"
@@ -28,9 +29,11 @@ class JsonValue;
 class cata_variant;
 class item;
 class item_components;
-class read_only_visitable;
 class recipe;
+class temp_crafting_inventory;
 template <typename E> struct enum_traits;
+
+enum scaling_stat : int;
 
 enum class recipe_filter_flags : int {
     none = 0,
@@ -53,6 +56,7 @@ struct enum_traits<recipe_filter_flags> {
     static constexpr bool is_flag_enum = true;
 };
 
+
 struct recipe_proficiency {
     proficiency_id id;
     bool _skill_penalty_assigned = false;
@@ -63,6 +67,27 @@ struct recipe_proficiency {
     std::optional<time_duration> max_experience = std::nullopt;
 
     void load( const JsonObject &jo );
+    void deserialize( const JsonObject &jo );
+};
+
+
+struct vitamin_resource_cost {
+    vitamin_id vitamin;
+    int value = 0;
+    std::optional<int> safe_level;
+
+    void deserialize( const JsonObject &jo );
+};
+
+struct character_resource_costs {
+    int mana = 0;
+    int stamina = 0;
+    std::vector<vitamin_resource_cost> vitamins;
+
+    bool empty() const {
+        return mana == 0 && stamina == 0 && vitamins.empty();
+    }
+
     void deserialize( const JsonObject &jo );
 };
 
@@ -125,6 +150,13 @@ struct recipe_step {
     std::vector<std::pair<requirement_id, int>> reqs_external;
     // Populated during finalize from reqs_internal + reqs_external
     requirement_data requirements;
+
+    step_attention attention = step_attention::none;
+    // nullopt = step waits indefinitely.
+    std::optional<time_duration> max_time;
+    // Buffer past max_time before destruction.  Requires max_time.
+    std::optional<time_duration> grace_period;
+    translation unattend_message;
 
     void load( const JsonObject &jo, const std::string &recipe_name, int step_index );
 };
@@ -218,8 +250,19 @@ class recipe
             return deduped_requirements_;
         }
 
+        // Root-level requirements (inline + "using"), captured before per-step
+        // requirements merge in.  Empty for stepless recipes.
+        const requirement_data &root_requirements() const {
+            return root_requirements_;
+        }
+
         const recipe_id &ident() const {
             return id;
+        }
+
+        /** Returns the character resource costs required to complete this recipe. */
+        const character_resource_costs &get_character_resources() const {
+            return character_resources;
         }
 
         bool is_blacklisted() const {
@@ -258,6 +301,8 @@ class recipe
         std::pair<int, time_duration> morale_modifier;
         skill_id skill_used;
         std::map<skill_id, int> required_skills;
+        /** Character resource costs required to complete this recipe */
+        character_resource_costs character_resources;
         // For step recipes, use get_proficiencies() instead -- this field is empty.
         std::vector<recipe_proficiency> proficiencies;
 
@@ -271,6 +316,13 @@ class recipe
         std::set<recipe_id> nested_category_data;
 
         std::set<flag_id> flags_to_delete; // Flags to delete from the resultant item.
+
+        // Returns true if the character satisfies all configured stat requirements.
+        bool character_meets_requirements( const Character &character ) const;
+        // Returns true if the recipe has any character stat requirements.
+        bool has_character_requirements() const;
+        // Returns the character stat requirements configured for this recipe.
+        const std::map<scaling_stat, int> &get_character_requirements() const;
 
         // Create a string list to describe the skill requirements for this recipe
         // Format: skill_name(level/amount), skill_name(level/amount)
@@ -296,13 +348,13 @@ class recipe
         // The time malus due to proficiencies lacking.
         // book_bonuses: nearby book proficiency bonuses (avoids inventory scan).
         float proficiency_time_maluses( const Character &crafter,
-                                        const book_proficiency_bonuses &books ) const;
+                                        const book_proficiency_bonuses &books = {} ) const;
         // The time malus if all the proficiencies were lacking
         float max_proficiency_time_maluses( const Character &crafter ) const;
         // The skill malus due to proficiencies lacking.
         // book_bonuses: nearby book proficiency bonuses (avoids inventory scan).
         float proficiency_skill_maluses( const Character &crafter,
-                                         const book_proficiency_bonuses &books ) const;
+                                         const book_proficiency_bonuses &books = {} ) const;
         // The max skill malus due to proficiencies lacking
         float max_proficiency_skill_maluses( const Character &crafter ) const;
 
@@ -316,6 +368,8 @@ class recipe
         const std::vector<recipe_step> &steps() const {
             return steps_;
         }
+        bool has_attention_steps() const;
+        bool has_remaining_attention_steps( int from_step ) const;
         // Returns aggregate proficiencies for step recipes, or the legacy
         // proficiencies field for stepless recipes.  This is a conservative
         // whole-recipe approximation used for display, gating, approximate
@@ -330,8 +384,11 @@ class recipe
             const book_proficiency_bonuses &books );
         // Per-step time budget in base moves (with proficiency malus and batch savings).
         // Same per-step formula that batch_time() uses internally.
+        // ignore_proficiencies skips the proficiency malus (passive steps run on
+        // wall-clock independent of crafter skill).
         double step_budget_moves( const Character &guy, size_t step_idx, int batch,
-                                  const crafting_cost_context &ctx ) const;
+                                  const crafting_cost_context &ctx,
+                                  recipe_time_flag flags = recipe_time_flag::none ) const;
 
         // This is used by the basecamp bulletin board.
         std::string required_all_skills_string( const std::map<skill_id, int> & ) const;
@@ -443,8 +500,14 @@ class recipe
         /** Requires specified inline with the recipe (and replaced upon inheritance) */
         std::vector<std::pair<requirement_id, int>> reqs_internal;
 
+        /** Character stat requirements. */
+        std::map<scaling_stat, int> character_requirements_;
+
         /** Combined requirements cached when recipe finalized */
         requirement_data requirements_;
+
+        /** Snapshot backing root_requirements() */
+        requirement_data root_requirements_;
 
         /** Deduped version constructed from the above requirements_ */
         deduped_requirement_data deduped_requirements_;
@@ -492,7 +555,7 @@ class recipe
 // Best (lowest) speed modifier for a quality at a given level from available items.
 // Returns 1.0f if no items have a speed modifier for this quality.
 // crafter is used for charged_qualities (ammo_sufficient check).
-float best_quality_speed_modifier( const read_only_visitable &inv,
+float best_quality_speed_modifier( const temp_crafting_inventory &inv,
                                    const Character &crafter, const quality_id &qual, int level );
 
 // Compute per-step tool speed modifiers for a recipe from the crafter's inventory.

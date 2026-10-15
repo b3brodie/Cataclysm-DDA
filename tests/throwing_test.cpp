@@ -15,6 +15,7 @@
 #include "item.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "map_helpers_tests.h"
 #include "monster.h"
 #include "npc.h"
 #include "player_helpers.h"
@@ -27,7 +28,7 @@
 static const itype_id itype_grenade( "grenade" );
 static const itype_id itype_javelin_iron( "javelin_iron" );
 static const itype_id itype_rock( "rock" );
-static const itype_id itype_throwing_stick( "throwing_stick" );
+static const itype_id itype_throwing_stick_with_charges( "throwing_stick_with_charges" );
 
 static const skill_id skill_throw( "throw" );
 
@@ -39,6 +40,8 @@ TEST_CASE( "throwing_distance_test", "[throwing], [balance]" )
     CHECK( thrower.throw_range( grenade ) <= 35 );
 }
 
+namespace
+{
 struct throw_test_data {
     statistics<bool> hits;
     statistics<double> dmg;
@@ -53,11 +56,12 @@ struct throw_test_pstats {
     int per;
 };
 
-static std::ostream &operator<<( std::ostream &stream, const throw_test_pstats &pstats )
+std::ostream &operator<<( std::ostream &stream, const throw_test_pstats &pstats )
 {
     return stream << "STR: " << pstats.str << " DEX: " << pstats.dex <<
            " PER: " << pstats.per << " SKL: " << pstats.skill_lvl;
 }
+} // namespace
 
 static void reset_player( Character &you, const throw_test_pstats &pstats,
                           const tripoint_bub_ms &pos )
@@ -206,8 +210,8 @@ TEST_CASE( "basic_throwing_sanity_tests", "[throwing] [balance]" )
     }
 
     SECTION( "test_player_vs_zombie_javelin_iron_athlete" ) {
-        test_throwing_player_versus( p, "mon_zombie", itype_javelin_iron, 1, hi_skill_athlete_stats, { 1.00, 0.10 }, { 34.00, 8 } );
-        test_throwing_player_versus( p, "mon_zombie", itype_javelin_iron, 5, hi_skill_athlete_stats, { 1.00, 0.10 }, { 34.00, 8 } );
+        test_throwing_player_versus( p, "mon_zombie", itype_javelin_iron, 1, hi_skill_athlete_stats, { 1.00, 0.10 }, { 44.00, 8 } );
+        test_throwing_player_versus( p, "mon_zombie", itype_javelin_iron, 5, hi_skill_athlete_stats, { 1.00, 0.10 }, { 44.00, 8 } );
         test_throwing_player_versus( p, "mon_zombie", itype_javelin_iron, 10, hi_skill_athlete_stats, { 1.00, 0.10 }, { 34.16, 8 } );
         test_throwing_player_versus( p, "mon_zombie", itype_javelin_iron, 15, hi_skill_athlete_stats, { 0.97, 0.10 }, { 25.21, 6 } );
         test_throwing_player_versus( p, "mon_zombie", itype_javelin_iron, 20, hi_skill_athlete_stats, { 0.82, 0.10 }, { 18.90, 5 } );
@@ -319,7 +323,7 @@ TEST_CASE( "time_to_throw_independent_of_number_of_projectiles", "[throwing] [ba
     Character &you = get_avatar();
     clear_avatar();
 
-    item thrown( itype_throwing_stick, calendar::turn, 10 );
+    item thrown( itype_throwing_stick_with_charges, calendar::turn, 10 );
     REQUIRE( thrown.charges > 1 );
     you.wield( thrown );
     int initial_moves = -1;

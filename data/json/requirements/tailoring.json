@@ -156,7 +156,7 @@
       [
         [ "ammonia_liquid", 2 ],
         [ "vinegar", 16 ],
-        [ "ash", 100 ],
+        [ "ash", 10 ],
         [ "tanbark", 1 ],
         [ "salt", 100 ],
         [ "chem_potassium_alum", 100 ]
@@ -293,6 +293,13 @@
     "type": "requirement",
     "//": "14g per unit. Crafting possibly-patchwork denim items, adjusted for tailoring rework. Time needed is usually 20 minutes per unit if hand-stitching.  excessive weight of material is wasted, possibly producing denim scraps.",
     "qualities": [ { "id": "SEW", "level": 2 }, { "id": "FABRIC_CUT", "level": 1 } ],
+    "components": [ [ [ "denim_patch", 1 ] ], [ [ "filament", 5, "LIST" ] ] ]
+  },
+  {
+    "id": "tailoring_denim_small_simple",
+    "type": "requirement",
+    "//": "14g per unit. Crafting possibly-patchwork denim items, adjusted for tailoring rework. Time needed is usually 20 minutes per unit if hand-stitching.  excessive weight of material is wasted, possibly producing denim scraps.",
+    "qualities": [ { "id": "SEW", "level": 2 }, { "id": "CUT", "level": 1 } ],
     "components": [ [ [ "denim_patch", 1 ] ], [ [ "filament", 5, "LIST" ] ] ]
   },
   {
@@ -572,6 +579,7 @@
     "type": "requirement",
     "//": "1 unit of 'sewing_tool' is 1 minute of sewing.",
     "//1": "Sewing maching is 84W, 1 charge is 1kj so that's 12s of use. I'm assuming the machine is only running 50% of the time so 24s. 60 / 24 = 2.5 rounded down to 2.",
+    "qualities": [ { "id": "SEW", "level": 1 } ],
     "tools": [
       [
         [ "sewing_machine", 2 ],

@@ -591,13 +591,12 @@
     "volume": "1 L",
     "price": "68 USD",
     "price_postapoc": "2 USD 50 cent",
-    "material": [ "neoprene", "nylon", "rubber" ],
     "symbol": "[",
     "looks_like": "boots_rubber",
     "color": "dark_gray",
     "warmth": 30,
     "environmental_protection": 10,
-    "flags": [ "VARSIZE", "WATER_FRIENDLY", "WATERPROOF", "SKINTIGHT", "TOUGH_FEET", "SOFT" ],
+    "flags": [ "VARSIZE", "WATER_FRIENDLY", "WATERPROOF" ],
     "armor": [
       {
         "covers": [ "foot_l", "foot_r" ],
@@ -659,8 +658,6 @@
     "weight": "160 g",
     "warmth": 50,
     "environmental_protection": 12,
-    "extend": { "flags": [ "NORMAL" ] },
-    "delete": { "flags": [ "TOUGH_FEET", "SOFT" ] },
     "armor": [
       {
         "covers": [ "foot_l", "foot_r" ],
@@ -1491,7 +1488,12 @@
         "flag_restriction": [ "BELT_CLIP", "SHEATH_KNIFE" ]
       }
     ],
-    "use_action": { "type": "transform", "msg": "You loosen your %s.", "target": "wetsuit_shorts_technical_loose", "menu_text": "Loosen" },
+    "use_action": {
+      "type": "transform",
+      "msg": "You loosen your shorts.",
+      "target": "wetsuit_shorts_technical_loose",
+      "menu_text": "Loosen"
+    },
     "warmth": 11,
     "environmental_protection": 8,
     "flags": [ "VARSIZE", "WATER_FRIENDLY", "WATERPROOF", "SKINTIGHT" ]
@@ -1505,7 +1507,7 @@
     "proportional": { "weight": 1.25, "volume": 1.25, "price": 1.25 },
     "use_action": {
       "type": "transform",
-      "msg": "You loosen your %s.",
+      "msg": "You loosen your shorts.",
       "target": "xl_wetsuit_shorts_technical_loose",
       "menu_text": "Loosen"
     },
@@ -1520,7 +1522,7 @@
     "proportional": { "weight": 0.75, "volume": 0.75, "price": 0.75 },
     "use_action": {
       "type": "transform",
-      "msg": "You loosen your %s.",
+      "msg": "You loosen your shorts.",
       "target": "xs_wetsuit_shorts_technical_loose",
       "menu_text": "Loosen"
     },
@@ -1533,7 +1535,7 @@
     "name": { "str_sp": "wetsuit technical shorts (loose)" },
     "description": "A pair of stretchy neoprene shorts with large pockets.  Can be worn over a wetsuit or adjusted to be worn alone.",
     "copy-from": "wetsuit_shorts_technical",
-    "use_action": { "type": "transform", "msg": "You tighten your %s.", "target": "wetsuit_shorts_technical", "menu_text": "Tighten" },
+    "use_action": { "type": "transform", "msg": "You tighten your shorts.", "target": "wetsuit_shorts_technical", "menu_text": "Tighten" },
     "delete": { "flags": [ "SKINTIGHT" ] }
   },
   {
@@ -1542,7 +1544,12 @@
     "subtypes": [ "ARMOR" ],
     "copy-from": "xl_wetsuit_shorts_technical",
     "name": { "str_sp": "wetsuit technical shorts (loose)" },
-    "use_action": { "type": "transform", "msg": "You tighten your %s.", "target": "xl_wetsuit_shorts_technical", "menu_text": "Tighten" },
+    "use_action": {
+      "type": "transform",
+      "msg": "You tighten your shorts.",
+      "target": "xl_wetsuit_shorts_technical",
+      "menu_text": "Tighten"
+    },
     "delete": { "flags": [ "SKINTIGHT" ] }
   },
   {
@@ -1551,7 +1558,12 @@
     "subtypes": [ "ARMOR" ],
     "copy-from": "xs_wetsuit_shorts_technical",
     "name": { "str_sp": "wetsuit technical shorts (loose)" },
-    "use_action": { "type": "transform", "msg": "You tighten your %s.", "target": "xs_wetsuit_shorts_technical", "menu_text": "Tighten" },
+    "use_action": {
+      "type": "transform",
+      "msg": "You tighten your shorts.",
+      "target": "xs_wetsuit_shorts_technical",
+      "menu_text": "Tighten"
+    },
     "delete": { "flags": [ "SKINTIGHT" ] }
   },
   {
@@ -1599,29 +1611,9 @@
         "encumbrance": [ 0, 0 ]
       }
     ],
-    "pocket_data": [
-      {
-        "pocket_type": "CONTAINER",
-        "max_contains_volume": "500 ml",
-        "max_contains_weight": "1 kg",
-        "moves": 130,
-        "max_item_length": "11 cm",
-        "watertight": true,
-        "description": "Back pocket."
-      },
-      {
-        "pocket_type": "CONTAINER",
-        "max_contains_volume": "500 ml",
-        "max_contains_weight": "1 kg",
-        "moves": 130,
-        "max_item_length": "11 cm",
-        "watertight": true,
-        "description": "Back pocket."
-      }
-    ],
     "warmth": 10,
     "environmental_protection": 6,
-    "flags": [ "VARSIZE", "WATER_FRIENDLY", "WATERPROOF", "SKINTIGHT", "POCKETS" ]
+    "flags": [ "VARSIZE", "WATER_FRIENDLY", "WATERPROOF", "SKINTIGHT" ]
   },
   {
     "id": "xl_wetsuit_spring",
@@ -1923,7 +1915,7 @@
     "type": "ITEM",
     "subtypes": [ "ARMOR" ],
     "name": { "str": "full-face diving mask" },
-    "description": "A full-face diving mask that covers the face and eyes.  Can be equipped with any common scuba regulator to protect from drowning and other dangers, though the process needs some time and knowledge.",
+    "description": "A full-face diving mask that covers the face and eyes.  It requires a separate rebreather mask or SCUBA regulator for full protection.",
     "//": "Based on OTS Spectrum mask",
     "weight": "1040 g",
     "volume": "1500 ml",
@@ -1966,7 +1958,7 @@
     "type": "ITEM",
     "subtypes": [ "ARMOR" ],
     "name": { "str": "modular full-face diving mask" },
-    "description": "A high-end modular full-face diving mask that covers the face and eyes.  Can be equipped with proprietary adapters for scuba tanks or rebreather cartridges to protect from drowning and other dangers.",
+    "description": "A high-end modular full-face diving mask that covers the face and eyes.  It requires a separate rebreather mask or SCUBA regulator for full protection.",
     "//": "Based on Kirby Morgan M-48 MOD-1 mask",
     "weight": "830 g",
     "volume": "1500 ml",

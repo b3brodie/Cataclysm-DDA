@@ -135,6 +135,7 @@ class item_pocket
         bool has_any_with( const std::function<bool( const item & )> &filter ) const;
 
         bool is_type( pocket_type ptype ) const;
+        bool is_type( const std::set<pocket_type> &ptype ) const;
         bool is_ablative() const;
         bool is_holster() const;
         // checks if the pocket is a holster and if it has something in it
@@ -169,6 +170,10 @@ class item_pocket
         std::list<const item *> all_items_top() const;
         std::list<item *> all_items_ptr( pocket_type pk_type );
         std::list<const item *> all_items_ptr( pocket_type pk_type ) const;
+
+        // Sum of ememory_size() across top-level contents. Only meaningful
+        // for E_FILE_STORAGE pockets, used by item::occupied_ememory().
+        units::ememory occupied_ememory() const;
 
         item &back();
         const item &back() const;
@@ -212,6 +217,14 @@ class item_pocket
         // combined volume of contained items
         units::volume contents_volume() const;
         units::volume remaining_volume() const;
+
+        // While bulk-fill is active, contents_volume()/contains_weight() return
+        // a running total updated on each insertion rather than re-summing all
+        // contents, turning an O(n^2) fill into O(n). Only correct while nothing
+        // else mutates the contents between the paired calls (e.g. filling one
+        // fresh container); end_bulk_fill() drops the totals.
+        void begin_bulk_fill();
+        void end_bulk_fill();
         // how many more of @it can this pocket hold?
         int remaining_capacity_for_item( const item &it ) const;
         // the amount of space this pocket can hold before it starts expanding
@@ -258,7 +271,7 @@ class item_pocket
         int ammo_capacity( const ammotype &ammo ) const;
         int remaining_ammo_capacity( const ammotype &ammo ) const;
         void casings_handle( const std::function<bool( item & )> &func );
-        bool use_amount( const itype_id &it, int &quantity, std::list<item> &used );
+        bool use_amount( item_location &parent, const itype_id &it, int &quantity, std::list<item> &used );
         bool will_explode_in_a_fire() const;
         bool item_has_uses_recursive() const;
         // will the items inside this pocket fall out of this pocket if it is placed into another item?
@@ -285,8 +298,6 @@ class item_pocket
 
         void remove_all_ammo( Character &guy );
         void remove_all_mods( Character &guy );
-
-        void set_item_defaults();
 
         // removes and returns the item from the pocket.
         std::optional<item> remove_item( const item &it );
@@ -320,6 +331,13 @@ class item_pocket
 
         bool saved_sealed() const {
             return _saved_sealed;
+        }
+
+        float get_capacity_mult() const {
+            return capacity_mult;
+        }
+        void set_capacity_mult( float m ) {
+            capacity_mult = m;
         }
 
         // tries to put an item in the pocket. returns false if failure
@@ -361,8 +379,11 @@ class item_pocket
         bool remove_internal( const std::function<bool( item & )> &filter,
                               int &count, std::list<item> &res );
         // @relates visitable
-        VisitResponse visit_contents( const std::function<VisitResponse( item *, item * )> &func,
-                                      item *parent = nullptr );
+        // the "parent is the item location who's contents you're visiting.
+        VisitResponse visit_contents( const std::function<VisitResponse( const item_location & )> &func,
+                                      const item_location &parent, const std::set<pocket_type> &allowed_pockets );
+        VisitResponse visit_contents_legacy( const std::function<VisitResponse( item *, item * )> &func,
+                                             item *parent, const std::set<pocket_type> &allowed_pockets = { pocket_type::CONTAINER } );
 
         void general_info( std::vector<iteminfo> &info, int pocket_number, bool disp_pocket_number ) const;
         void contents_info( std::vector<iteminfo> &info, int pocket_number, bool disp_pocket_number ) const;
@@ -426,6 +447,11 @@ class item_pocket
         // the items inside the pocket
         std::list<item> contents;
         bool _sealed = false;
+        // Running totals tracked only between begin_bulk_fill()/end_bulk_fill().
+        std::optional<units::volume> bulk_fill_volume; // NOLINT(cata-serialize)
+        std::optional<units::mass> bulk_fill_weight; // NOLINT(cata-serialize)
+        // Stamped from installed mods' capacity_mods; rederived on rebuild, not serialized.
+        float capacity_mult = 1.0f; // NOLINT(cata-serialize)
         // list of sub body parts that can't currently support rigid ablative armor
         std::set<sub_bodypart_id> no_rigid;
 
@@ -466,7 +492,7 @@ struct pocket_noise {
 class pocket_data
 {
     public:
-        using FlagsSetType = std::set<flag_id>;
+        using FlagsSetType = cata::flat_set<flag_id>;
 
         bool was_loaded = false;
 
@@ -567,6 +593,8 @@ class pocket_data
         cata::flat_set<itype_id> allowed_speedloaders;
         // the first in the json array for item_id_restriction when loaded
         itype_id default_magazine = itype_id::NULL_ID();
+        // Optional handle referenced by firing_requirements / consumption_per_use.
+        std::string pocket_id;
         // container's size and encumbrance does not change based on contents.
         bool rigid = false;
         // Parent item of this pocket has flag NO_UNLOAD

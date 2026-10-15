@@ -55,6 +55,8 @@
 #include "construction.h"
 #include "coordinates.h"
 #include "craft_command.h"
+#include "craft_reservation.h"
+#include "crafting_enums.h"
 #include "creature.h"
 #include "creature_tracker.h"
 #include "damage.h"
@@ -94,6 +96,7 @@
 #include "mtype.h"
 #include "mutation.h"
 #include "npc.h"
+#include "npc_sleep.h"
 #include "options.h"
 #include "overmapbuffer.h"
 #include "pimpl.h"
@@ -143,11 +146,7 @@ static const addiction_id addiction_nicotine( "nicotine" );
 static const addiction_id addiction_opiate( "opiate" );
 static const addiction_id addiction_sleeping_pill( "sleeping pill" );
 
-static const anatomy_id anatomy_human_anatomy( "human_anatomy" );
-
-static const damage_type_id damage_bash( "bash" );
-static const damage_type_id damage_bullet( "bullet" );
-static const damage_type_id damage_cut( "cut" );
+static const dimension_id dimension_world_default( "default" );
 
 static const efftype_id effect_riding( "riding" );
 
@@ -247,14 +246,15 @@ static void deserialize( weak_ptr_fast<monster> &obj, const JsonObject &data )
     //    }
 }
 
-static tripoint_bub_ms read_legacy_creature_pos( const JsonObject &data )
+static std::list<item> json_load_inv_items( const JsonArray &ja )
 {
-    tripoint_bub_ms pos;
-    if( !data.read( "posx", pos.x() ) || !data.read( "posy", pos.y() ) ||
-        !data.read( "posz", pos.z() ) ) {
-        debugmsg( R"(Bad Creature JSON: neither "location" nor "posx", "posy", "posz" found)" );
+    std::list<item> batch;
+    for( JsonObject jo : ja ) {
+        item tmp;
+        tmp.deserialize( jo );
+        batch.emplace_back( std::move( tmp ) );
     }
-    return pos;
+    return batch;
 }
 
 void item_contents::serialize( JsonOut &json ) const
@@ -417,9 +417,6 @@ void player_activity::deserialize( const JsonObject &data )
 
     bool is_obsolete = false;
     std::set<std::string> obs_activities {
-        "ACT_PICKUP_MENU", // Remove after 0.I
-        "ACT_VIEW_RECIPE", // Remove after 0.I
-        "ACT_ADV_INVENTORY", // Remove after 0.I
         "ACT_EAT_MENU", // Remove after 0.J
         "ACT_CONSUME_FOOD_MENU", // Remove after 0.J
         "ACT_CONSUME_DRINK_MENU", // Remove after 0.J
@@ -672,10 +669,6 @@ void activity_tracker::deserialize( const JsonObject &jo )
     jo.read( "tracker", tracker );
     jo.read( "intake", intake );
     jo.read( "low_activity_ticks", low_activity_ticks );
-    if( jo.has_member( "tick_counter" ) ) { // migration - remove after 0.G
-        tracker *= 1000;
-        intake *= 1000;
-    }
 }
 
 /**
@@ -700,6 +693,8 @@ void Character::load( const JsonObject &data )
 
     data.read( "name", name );
     data.read( "play_name", play_name );
+    data.read( "portrait_filename", portrait_filename );
+    data.read( "trauma", trauma_counter );
     data.read( "base_age", init_age );
     data.read( "base_height", init_height );
     if( !data.read( "blood_type", my_blood_type ) ||
@@ -888,17 +883,17 @@ void Character::load( const JsonObject &data )
         cached_mutations.emplace( add.first, add.second );
         on_mutation_gain( add.first );
     }
-    // We need to ensure that cached_mutations contains no invalid mutations before we do this
-    // As every time we add a mutation, we rebuild the enchantment cache, causing errors if
-    // we have invalid mutations.
-    recalculate_enchantment_cache();
-    recalculate_size();
 
     data.read( "my_bionics", *my_bionics );
     my_bionics->erase( std::remove_if( my_bionics->begin(), my_bionics->end(),
     []( const bionic & it ) {
         return it.id.is_null(); // remove obsoleted bionics
     } ), my_bionics->end() );
+    // We need to ensure that cached_mutations contains no invalid mutations before we do this
+    // As every time we add a mutation, we rebuild the enchantment cache, causing errors if
+    // we have invalid mutations.
+    recalculate_enchantment_cache();
+    recalculate_size();
 
     data.read( "known_monsters", known_monsters );
 
@@ -907,153 +902,14 @@ void Character::load( const JsonObject &data )
     data.read( "death_eocs", death_eocs );
     worn.on_takeoff( *this );
     clear_worn();
-    // deprecate after 0.G
-    if( data.has_array( "worn" ) ) {
-        std::list<item> items;
-        data.read( "worn", items );
-        worn = outfit( items );
-    } else {
-        data.read( "worn", worn );
-    }
+    data.read( "worn", worn );
     worn.on_item_wear( *this );
 
-    // TEMPORARY until 0.F
-    if( data.has_array( "hp_cur" ) ) {
-        set_anatomy( anatomy_human_anatomy );
-        set_body();
-        std::array<int, 6> hp_cur;
-        data.read( "hp_cur", hp_cur );
-        std::array<int, 6> hp_max;
-        data.read( "hp_max", hp_max );
-        set_part_hp_cur( bodypart_id( "head" ), hp_cur[0] );
-        set_part_hp_max( bodypart_id( "head" ), hp_max[0] );
-        set_part_hp_cur( bodypart_id( "torso" ), hp_cur[1] );
-        set_part_hp_max( bodypart_id( "torso" ), hp_max[1] );
-        set_part_hp_cur( bodypart_id( "arm_l" ), hp_cur[2] );
-        set_part_hp_max( bodypart_id( "arm_l" ), hp_max[2] );
-        set_part_hp_cur( bodypart_id( "arm_r" ), hp_cur[3] );
-        set_part_hp_max( bodypart_id( "arm_r" ), hp_max[3] );
-        set_part_hp_cur( bodypart_id( "leg_l" ), hp_cur[4] );
-        set_part_hp_max( bodypart_id( "leg_l" ), hp_max[4] );
-        set_part_hp_cur( bodypart_id( "leg_r" ), hp_cur[5] );
-        set_part_hp_max( bodypart_id( "leg_r" ), hp_max[5] );
-    }
-    if( data.has_array( "damage_bandaged" ) ) {
-        set_anatomy( anatomy_human_anatomy );
-        set_body();
-        std::array<int, 6> damage_bandaged;
-        data.read( "damage_bandaged", damage_bandaged );
-        set_part_damage_bandaged( bodypart_id( "head" ), damage_bandaged[0] );
-        set_part_damage_bandaged( bodypart_id( "torso" ), damage_bandaged[1] );
-        set_part_damage_bandaged( bodypart_id( "arm_l" ), damage_bandaged[2] );
-        set_part_damage_bandaged( bodypart_id( "arm_r" ), damage_bandaged[3] );
-        set_part_damage_bandaged( bodypart_id( "leg_l" ), damage_bandaged[4] );
-        set_part_damage_bandaged( bodypart_id( "leg_r" ), damage_bandaged[5] );
-    }
-    if( data.has_array( "damage_disinfected" ) ) {
-        set_anatomy( anatomy_human_anatomy );
-        set_body();
-        std::array<int, 6> damage_disinfected;
-        data.read( "damage_disinfected", damage_disinfected );
-        set_part_damage_disinfected( bodypart_id( "head" ), damage_disinfected[0] );
-        set_part_damage_disinfected( bodypart_id( "torso" ), damage_disinfected[1] );
-        set_part_damage_disinfected( bodypart_id( "arm_l" ), damage_disinfected[2] );
-        set_part_damage_disinfected( bodypart_id( "arm_r" ), damage_disinfected[3] );
-        set_part_damage_disinfected( bodypart_id( "leg_l" ), damage_disinfected[4] );
-        set_part_damage_disinfected( bodypart_id( "leg_r" ), damage_disinfected[5] );
-    }
-    if( data.has_array( "healed_24h" ) ) {
-        set_anatomy( anatomy_human_anatomy );
-        set_body();
-        std::array<int, 6> healed_total;
-        data.read( "healed_24h", healed_total );
-        set_part_healed_total( bodypart_id( "head" ), healed_total[0] );
-        set_part_healed_total( bodypart_id( "torso" ), healed_total[1] );
-        set_part_healed_total( bodypart_id( "arm_l" ), healed_total[2] );
-        set_part_healed_total( bodypart_id( "arm_r" ), healed_total[3] );
-        set_part_healed_total( bodypart_id( "leg_l" ), healed_total[4] );
-        set_part_healed_total( bodypart_id( "leg_r" ), healed_total[5] );
-    }
-    if( data.has_array( "body_wetness" ) ) {
-        set_anatomy( anatomy_human_anatomy );
-        set_body();
-        std::array<int, 12> body_wetness;
-        body_wetness.fill( 0 );
-        data.read( "body_wetness", body_wetness );
-        set_part_wetness( bodypart_id( "torso" ), body_wetness[0] );
-        set_part_wetness( bodypart_id( "head" ), body_wetness[1] );
-        set_part_wetness( bodypart_id( "eyes" ), body_wetness[2] );
-        set_part_wetness( bodypart_id( "mouth" ), body_wetness[3] );
-        set_part_wetness( bodypart_id( "arm_l" ), body_wetness[4] );
-        set_part_wetness( bodypart_id( "arm_r" ), body_wetness[5] );
-        set_part_wetness( bodypart_id( "hand_l" ), body_wetness[6] );
-        set_part_wetness( bodypart_id( "hand_r" ), body_wetness[7] );
-        set_part_wetness( bodypart_id( "leg_l" ), body_wetness[8] );
-        set_part_wetness( bodypart_id( "leg_r" ), body_wetness[9] );
-        set_part_wetness( bodypart_id( "foot_l" ), body_wetness[10] );
-        set_part_wetness( bodypart_id( "foot_r" ), body_wetness[11] );
-    }
-    if( data.has_array( "temp_cur" ) ) {
-        set_anatomy( anatomy_human_anatomy );
-        set_body();
-        std::array<units::temperature, 12> temp_cur;
-        temp_cur.fill( BODYTEMP_NORM );
-        data.read( "temp_cur", temp_cur );
-        set_part_temp_cur( bodypart_id( "torso" ), temp_cur[0] );
-        set_part_temp_cur( bodypart_id( "head" ), temp_cur[1] );
-        set_part_temp_cur( bodypart_id( "eyes" ), temp_cur[2] );
-        set_part_temp_cur( bodypart_id( "mouth" ), temp_cur[3] );
-        set_part_temp_cur( bodypart_id( "arm_l" ), temp_cur[4] );
-        set_part_temp_cur( bodypart_id( "arm_r" ), temp_cur[5] );
-        set_part_temp_cur( bodypart_id( "hand_l" ), temp_cur[6] );
-        set_part_temp_cur( bodypart_id( "hand_r" ), temp_cur[7] );
-        set_part_temp_cur( bodypart_id( "leg_l" ), temp_cur[8] );
-        set_part_temp_cur( bodypart_id( "leg_r" ), temp_cur[9] );
-        set_part_temp_cur( bodypart_id( "foot_l" ), temp_cur[10] );
-        set_part_temp_cur( bodypart_id( "foot_r" ), temp_cur[11] );
-    }
-    if( data.has_array( "temp_conv" ) ) {
-        set_anatomy( anatomy_human_anatomy );
-        set_body();
-        std::array<units::temperature, 12> temp_conv;
-        temp_conv.fill( BODYTEMP_NORM );
-        data.read( "temp_conv", temp_conv );
-        set_part_temp_conv( bodypart_id( "torso" ), temp_conv[0] );
-        set_part_temp_conv( bodypart_id( "head" ), temp_conv[1] );
-        set_part_temp_conv( bodypart_id( "eyes" ), temp_conv[2] );
-        set_part_temp_conv( bodypart_id( "mouth" ), temp_conv[3] );
-        set_part_temp_conv( bodypart_id( "arm_l" ), temp_conv[4] );
-        set_part_temp_conv( bodypart_id( "arm_r" ), temp_conv[5] );
-        set_part_temp_conv( bodypart_id( "hand_l" ), temp_conv[6] );
-        set_part_temp_conv( bodypart_id( "hand_r" ), temp_conv[7] );
-        set_part_temp_conv( bodypart_id( "leg_l" ), temp_conv[8] );
-        set_part_temp_conv( bodypart_id( "leg_r" ), temp_conv[9] );
-        set_part_temp_conv( bodypart_id( "foot_l" ), temp_conv[10] );
-        set_part_temp_conv( bodypart_id( "foot_r" ), temp_conv[11] );
-    }
-    if( data.has_array( "frostbite_timer" ) ) {
-        set_anatomy( anatomy_human_anatomy );
-        set_body();
-        std::array<int, 12> frostbite_timer;
-        frostbite_timer.fill( 0 );
-        data.read( "frostbite_timer", frostbite_timer );
-        set_part_frostbite_timer( bodypart_id( "torso" ), frostbite_timer[0] );
-        set_part_frostbite_timer( bodypart_id( "head" ), frostbite_timer[1] );
-        set_part_frostbite_timer( bodypart_id( "eyes" ), frostbite_timer[2] );
-        set_part_frostbite_timer( bodypart_id( "mouth" ), frostbite_timer[3] );
-        set_part_frostbite_timer( bodypart_id( "arm_l" ), frostbite_timer[4] );
-        set_part_frostbite_timer( bodypart_id( "arm_r" ), frostbite_timer[5] );
-        set_part_frostbite_timer( bodypart_id( "hand_l" ), frostbite_timer[6] );
-        set_part_frostbite_timer( bodypart_id( "hand_r" ), frostbite_timer[7] );
-        set_part_frostbite_timer( bodypart_id( "leg_l" ), frostbite_timer[8] );
-        set_part_frostbite_timer( bodypart_id( "leg_r" ), frostbite_timer[9] );
-        set_part_frostbite_timer( bodypart_id( "foot_l" ), frostbite_timer[10] );
-        set_part_frostbite_timer( bodypart_id( "foot_r" ), frostbite_timer[11] );
-    }
-
-    inv->clear();
+    // delete first part after 0.J
     if( data.has_member( "inv" ) ) {
-        inv->json_load_items( data.get_member( "inv" ) );
+        temporary_load_items = json_load_inv_items( data.get_array( "inv" ) );
+    } else {
+        data.read( "temporary_load_items", temporary_load_items );
     }
 
     set_wielded_item( item() );
@@ -1384,7 +1240,8 @@ void Character::store( JsonOut &json ) const
 
     json.member( "name", name );
     json.member( "play_name", play_name );
-
+    json.member( "portrait_filename", portrait_filename );
+    json.member( "trauma", trauma_counter );
     json.member( "base_age", init_age );
     json.member( "base_height", init_height );
     json.member_as_string( "blood_type", my_blood_type );
@@ -1493,6 +1350,7 @@ void Character::store( JsonOut &json ) const
     json.member( "stomach", stomach );
     json.member( "guts", guts );
     json.member( "automoveroute", auto_move_route );
+    json.member( "temporary_load_items", temporary_load_items );
     json.member( "known_traps" );
     json.start_array();
     for( const auto &elem : known_traps ) {
@@ -1526,8 +1384,6 @@ void Character::store( JsonOut &json ) const
     json.member( "addictions", addictions );
     json.member( "death_eocs", death_eocs );
     json.member( "worn", worn ); // also saves contents
-    json.member( "inv" );
-    inv->json_save_items( json );
 
     if( const auto lt_ptr = last_target.lock() ) {
         if( const npc *const guy = dynamic_cast<const npc *>( lt_ptr.get() ) ) {
@@ -1597,6 +1453,42 @@ void Character::store( JsonOut &json ) const
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///// avatar.h
+
+static void json_save_invcache( JsonOut &json, const invlet_favorites &invlet_cache )
+{
+    json.start_array();
+    for( const auto &elem : invlet_cache.get_invlets_by_id() ) {
+        json.start_object();
+        json.member( elem.first.str() );
+        json.start_array();
+        for( const char &_sym : elem.second ) {
+            json.write( static_cast<int>( _sym ) );
+        }
+        json.end_array();
+        json.end_object();
+    }
+    json.end_array();
+}
+
+static void json_load_invcache( const JsonValue &jsin, invlet_favorites &invlet_cache )
+{
+    try {
+        std::unordered_map<itype_id, std::string> map;
+        for( JsonObject jo : jsin.get_array() ) {
+            jo.allow_omitted_members();
+            for( const JsonMember member : jo ) {
+                std::string invlets;
+                for( const int i : member.get_array() ) {
+                    invlets.push_back( i );
+                }
+                map[itype_id( member.name() )] = invlets;
+            }
+        }
+        invlet_cache = invlet_favorites{ map };
+    } catch( const JsonError &jsonerr ) {
+        debugmsg( "bad invcache json:\n%s", jsonerr.c_str() );
+    }
+}
 
 void avatar::serialize( JsonOut &json ) const
 {
@@ -1672,7 +1564,7 @@ void avatar::store( JsonOut &json ) const
 
     json.member( "assigned_invlet" );
     json.start_array();
-    for( const auto &iter : inv->assigned_invlet ) {
+    for( const auto &iter : assigned_invlet ) {
         json.start_array();
         json.write( iter.first );
         json.write( iter.second );
@@ -1681,7 +1573,7 @@ void avatar::store( JsonOut &json ) const
     json.end_array();
 
     json.member( "invcache" );
-    inv->json_save_invcache( json );
+    json_save_invcache( json, invlet_cache );
 
     json.member( "calorie_diary", calorie_diary );
 
@@ -1703,6 +1595,9 @@ void avatar::deserialize( const JsonObject &data )
 void avatar::load( const JsonObject &data )
 {
     Character::load( data );
+    // standing where the save left you counts from now
+    relocation_anchor = pos_abs();
+    relocated_at = calendar::turn;
 
     std::string prof_ident = "(null)";
     if( data.read( "profession", prof_ident ) && string_id<profession>( prof_ident ).is_valid() ) {
@@ -1817,12 +1712,12 @@ void avatar::load( const JsonObject &data )
     }
 
     for( JsonArray pair : data.get_array( "assigned_invlet" ) ) {
-        inv->assigned_invlet[static_cast<char>( pair.get_int( 0 ) )] =
+        assigned_invlet[static_cast<char>( pair.get_int( 0 ) )] =
             itype_id( pair.get_string( 1 ) );
     }
 
     if( data.has_member( "invcache" ) ) {
-        inv->json_load_invcache( data.get_member( "invcache" ) );
+        json_load_invcache( data.get_member( "invcache" ), invlet_cache );
     }
 
     data.read( "calorie_diary", calorie_diary );
@@ -2126,43 +2021,15 @@ void npc::load( const JsonObject &data )
 {
     Character::load( data );
 
-    // TEMPORARY Remove if branch after 0.G (keep else branch)
-    if( !data.has_member( "location" ) ) {
-        point_abs_sm submap_coords;
-        data.read( "submap_coords", submap_coords );
-        const tripoint_bub_ms pos = read_legacy_creature_pos( data );
-        set_pos_abs_only( tripoint_abs_ms( project_to<coords::ms>( submap_coords ),
-                                           0 ) + tripoint( pos.x() % SEEX, pos.y() % SEEY, pos.z() ) );
-        std::optional<tripoint_bub_ms> opt;
-        if( data.read( "last_player_seen_pos", opt ) && opt ) {
-            last_player_seen_pos = pos_abs() + ( *opt - pos );
-        }
-        if( data.read( "pulp_location", opt ) && opt ) {
-            pulp_location = pos_abs() + ( *opt - pos );
-        }
-        tripoint_abs_ms tmp;
-        if( data.read( "guardx", tmp.x() ) && data.read( "guardy", tmp.y() ) &&
-            data.read( "guardz", tmp.z() ) &&
-            tmp != tripoint_abs_ms::min ) {
-            guard_pos = tmp;
-        }
-        if( data.read( "chair_pos", tmp ) && tmp != tripoint_abs_ms::min ) {
-            chair_pos = tmp;
-        }
-        if( data.read( "wander_pos", tmp ) && tmp != tripoint_abs_ms::min ) {
-            wander_pos = tmp;
-        }
-    } else {
-        data.read( "last_player_seen_pos", last_player_seen_pos );
-        data.read( "guard_pos", guard_pos );
-        data.read( "pulp_location", pulp_location );
-        data.read( "chair_pos", chair_pos );
-        data.read( "wander_pos", wander_pos );
-    }
+    data.read( "last_player_seen_pos", last_player_seen_pos );
+    data.read( "guard_pos", guard_pos );
+    data.read( "pulp_location", pulp_location );
+    data.read( "chair_pos", chair_pos );
+    data.read( "wander_pos", wander_pos );
 
     int misstmp = 0;
     int atttmp = 0;
-    std::string facID;
+    faction_id facID;
     std::string comp_miss_role;
     tripoint_abs_omt comp_miss_pt;
     std::string companion_mission_role;
@@ -2198,31 +2065,29 @@ void npc::load( const JsonObject &data )
 
     data.read( "assigned_camp", assigned_camp );
     data.read( "job", job );
+
+    // remove migration in 0.K
     if( data.read( "mission", misstmp ) ) {
         mission = static_cast<npc_mission>( misstmp );
-        static const std::set<npc_mission> legacy_missions = {{
-                NPC_MISSION_LEGACY_1, NPC_MISSION_LEGACY_2,
-                NPC_MISSION_LEGACY_3
-            }
-        };
+        static const std::set<npc_mission> legacy_missions = { NPC_MISSION_LEGACY_1 };
         if( legacy_missions.count( mission ) > 0 ) {
             mission = NPC_MISSION_NULL;
         }
     }
     if( data.read( "previous_mission", misstmp ) ) {
         previous_mission = static_cast<npc_mission>( misstmp );
-        static const std::set<npc_mission> legacy_missions = {{
-                NPC_MISSION_LEGACY_1, NPC_MISSION_LEGACY_2,
-                NPC_MISSION_LEGACY_3
-            }
-        };
+        static const std::set<npc_mission> legacy_missions = { NPC_MISSION_LEGACY_1 };
         if( legacy_missions.count( mission ) > 0 ) {
             previous_mission = NPC_MISSION_NULL;
         }
     }
 
     if( data.read( "my_fac", facID ) ) {
-        fac_id = faction_id( facID );
+        if( facID.is_valid() ) {
+            fac_id = facID;
+        } else {
+            fac_id = faction_id::NULL_ID();
+        }
     }
     int temp_fac_api_ver = 0;
     if( data.read( "faction_api_ver", temp_fac_api_ver ) ) {
@@ -2296,7 +2161,14 @@ void npc::load( const JsonObject &data )
 
     companion_mission_inv.clear();
     if( data.has_member( "companion_mission_inv" ) ) {
-        companion_mission_inv.json_load_items( data.get_member( "companion_mission_inv" ) );
+        // deprecate after 0.J
+        if( savegame_loading_version < 40 ) {
+            for( const item &it : json_load_inv_items( data.get_member( "companion_mission_inv" ) ) ) {
+                companion_mission_inv.insert( it );
+            }
+        } else {
+            data.read( "companion_mission_inv", companion_mission_inv );
+        }
     }
 
     if( !data.read( "restock", restock ) ) {
@@ -2320,6 +2192,7 @@ void npc::load( const JsonObject &data )
         member.read( p );
         complaints.emplace( member.name(), p );
     }
+    data.read( "sleep_session", sleep_session );
     data.read( "unique_id", unique_id );
     clear_personality_traits();
     generate_personality_traits();
@@ -2337,6 +2210,37 @@ void npc::serialize( JsonOut &json ) const
     // puts their data into the same json object.
     store( json );
     json.end_object();
+}
+
+void npc_sleep_session::serialize( JsonOut &json ) const
+{
+    json.start_object();
+    json.member( "phase", static_cast<int>( phase ) );
+    json.member( "settle_started", settle_started );
+    json.member( "next_attempt", next_attempt );
+    json.member( "woken_at", woken_at );
+    json.member( "wake_window_start", wake_window_start );
+    json.member( "wakes", wakes );
+    json.member( "stalled_until", stalled_until );
+    json.member( "stay_awake_until", stay_awake_until );
+    json.member( "stay_awake_floor", stay_awake_floor );
+    json.end_object();
+}
+
+void npc_sleep_session::deserialize( const JsonObject &data )
+{
+    data.allow_omitted_members();
+    int phase_value = 0;
+    data.read( "phase", phase_value );
+    phase = static_cast<npc_sleep_phase>( phase_value );
+    data.read( "settle_started", settle_started );
+    data.read( "next_attempt", next_attempt );
+    data.read( "woken_at", woken_at );
+    data.read( "wake_window_start", wake_window_start );
+    data.read( "wakes", wakes );
+    data.read( "stalled_until", stalled_until );
+    data.read( "stay_awake_until", stay_awake_until );
+    data.read( "stay_awake_floor", stay_awake_floor );
 }
 
 void npc::store( JsonOut &json ) const
@@ -2391,92 +2295,18 @@ void npc::store( JsonOut &json ) const
     json.member( "companion_mission_time_ret", companion_mission_time_ret );
     json.member( "companion_mission_exertion", companion_mission_exertion );
     json.member( "companion_mission_travel_time", companion_mission_travel_time );
-    json.member( "companion_mission_inv" );
-    companion_mission_inv.json_save_items( json );
+    json.member( "companion_mission_inv", companion_mission_inv );
     json.member( "restock", restock );
 
     json.member( "complaints", complaints );
+    json.member( "sleep_session", sleep_session );
     json.member( "unique_id", unique_id );
     json.member( "may_activity_occupancy_after_end_items_loc",
                  may_activity_occupancy_after_end_items_loc );
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-///// inventory.h
-/*
- * Save invlet cache
- */
-void inventory::json_save_invcache( JsonOut &json ) const
-{
-    json.start_array();
-    for( const auto &elem : invlet_cache.get_invlets_by_id() ) {
-        json.start_object();
-        json.member( elem.first.str() );
-        json.start_array();
-        for( const char &_sym : elem.second ) {
-            json.write( static_cast<int>( _sym ) );
-        }
-        json.end_array();
-        json.end_object();
-    }
-    json.end_array();
-}
-
-/*
- * Invlet cache: player specific, thus not wrapped in inventory::json_load/save
- */
-void inventory::json_load_invcache( const JsonValue &jsin )
-{
-    try {
-        std::unordered_map<itype_id, std::string> map;
-        for( JsonObject jo : jsin.get_array() ) {
-            jo.allow_omitted_members();
-            for( const JsonMember member : jo ) {
-                std::string invlets;
-                for( const int i : member.get_array() ) {
-                    invlets.push_back( i );
-                }
-                map[itype_id( member.name() )] = invlets;
-            }
-        }
-        invlet_cache = invlet_favorites{ map };
-    } catch( const JsonError &jsonerr ) {
-        debugmsg( "bad invcache json:\n%s", jsonerr.c_str() );
-    }
-}
-
-/*
- * save all items. Just this->items, invlet cache saved separately
- */
-void inventory::json_save_items( JsonOut &json ) const
-{
-    json.start_array();
-    for( const auto &elem : items ) {
-        for( const item &elem_stack_iter : elem ) {
-            elem_stack_iter.serialize( json );
-        }
-    }
-    json.end_array();
-}
-
-void inventory::json_load_items( const JsonArray &ja )
-{
-    for( JsonObject jo : ja ) {
-        item tmp;
-        tmp.deserialize( jo );
-        add_item( tmp, true, false );
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 ///// monster.h
-
-// TEMPORARY until 0.G
-void monster::deserialize( const JsonObject &data, const tripoint_abs_sm &submap_loc )
-{
-    data.allow_omitted_members();
-    load( data, submap_loc );
-}
 
 void monster::deserialize( const JsonObject &data )
 {
@@ -2484,45 +2314,9 @@ void monster::deserialize( const JsonObject &data )
     load( data );
 }
 
-// TEMPORARY until 0.G
-void monster::load( const JsonObject &data, const tripoint_abs_sm &submap_loc )
-{
-    load( data );
-    if( !data.has_member( "location" ) ) {
-        // When loading an older save in which the monster's absolute location is not serialized
-        // and the monster is not in the current map, the submap location inferred by load()
-        // will be wrong. Use the supplied argument to fix it.
-        const tripoint_abs_ms old_loc = pos_abs();
-        point_abs_sm wrong_submap;
-        tripoint_sm_ms_ib local_pos;
-        std::tie( wrong_submap, local_pos ) = project_remain<coords::sm>( pos_abs() );
-        set_pos_abs_only( project_combine( submap_loc.xy(), local_pos ) );
-        // adjust other relative coordinates that would be subject to the same error
-        wander_pos = wander_pos - old_loc + pos_abs();
-        if( goal ) {
-            *goal = *goal - old_loc + pos_abs();
-        }
-    }
-}
-
 void monster::load( const JsonObject &data )
 {
     Creature::load( data );
-
-    // TEMPORARY until 0.G
-    if( !data.has_member( "location" ) ) {
-        set_pos_abs_only( get_map().get_abs( read_legacy_creature_pos( data ) ) );
-        tripoint_bub_ms wand;
-        data.read( "wandx", wand.x() );
-        data.read( "wandy", wand.y() );
-        data.read( "wandz", wand.z() );
-        wander_pos = get_map().get_abs( wand );
-        tripoint_rel_ms destination;
-        data.read( "destination", destination );
-        if( destination != tripoint_rel_ms::zero ) {
-            goal = pos_abs() + destination;
-        }
-    }
 
     const mtype_id montype( data.get_string( "typeid", "invalid*type" ) );
     if( montype.is_valid() ) {
@@ -2650,8 +2444,6 @@ void monster::load( const JsonObject &data )
     data.read( "baby_timer", baby_timer );
     if( baby_timer && *baby_timer == calendar::before_time_starts ) {
         baby_timer.reset();
-    } else if( reproduces && type->baby_timer && !baby_timer ) {  // Remove after 0.I
-        baby_timer.emplace( calendar::turn + *type->baby_timer );
     }
 
     biosignatures = data.get_bool( "biosignatures", type->biosignatures );
@@ -2800,6 +2592,30 @@ void time_duration::deserialize( const JsonValue &jsin )
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 ///// item.h
 
+static const char *step_choice_to_string( step_choice c )
+{
+    switch( c ) {
+        case step_choice::do_wait:
+            return "do_wait";
+        case step_choice::do_something:
+            return "do_something";
+        case step_choice::set_timer:
+            return "set_timer";
+    }
+    return "do_wait";
+}
+
+static step_choice step_choice_from_string( const std::string &s )
+{
+    if( s == "do_something" ) {
+        return step_choice::do_something;
+    }
+    if( s == "set_timer" ) {
+        return step_choice::set_timer;
+    }
+    return step_choice::do_wait;
+}
+
 void item::craft_data::serialize( JsonOut &jsout ) const
 {
     jsout.start_object();
@@ -2809,10 +2625,251 @@ void item::craft_data::serialize( JsonOut &jsout ) const
     jsout.member( "next_failure_point", next_failure_point );
     jsout.member( "tools_to_continue", tools_to_continue );
     jsout.member( "batch_size", batch_size );
-    jsout.member( "cached_tool_selections", cached_tool_selections );
+    jsout.member( "step_tool_allocs", step_tool_allocs );
     jsout.member( "current_step", current_step );
     jsout.member( "step_progress", step_progress );
+    if( !step_plans.empty() ) {
+        jsout.member( "step_plans" );
+        jsout.start_array();
+        for( const attention_plan &p : step_plans ) {
+            jsout.start_object();
+            jsout.member( "choice", step_choice_to_string( p.choice ) );
+            if( p.alarm_offset.has_value() ) {
+                jsout.member( "alarm_offset", *p.alarm_offset );
+            }
+            jsout.end_object();
+        }
+        jsout.end_array();
+    }
+    if( passive_started_at != calendar::before_time_starts ) {
+        jsout.member( "passive_started_at", passive_started_at );
+    }
+    if( ready_at != calendar::before_time_starts ) {
+        jsout.member( "ready_at", ready_at );
+    }
+    if( alarm_at != calendar::before_time_starts ) {
+        jsout.member( "alarm_at", alarm_at );
+    }
+    if( fail_at != calendar::before_time_starts ) {
+        jsout.member( "fail_at", fail_at );
+    }
+    if( pause_started_at != calendar::before_time_starts ) {
+        jsout.member( "pause_started_at", pause_started_at );
+    }
+    if( saved_ready_at != calendar::before_time_starts ) {
+        jsout.member( "saved_ready_at", saved_ready_at );
+    }
+    if( saved_alarm_at != calendar::before_time_starts ) {
+        jsout.member( "saved_alarm_at", saved_alarm_at );
+    }
+    if( saved_fail_at != calendar::before_time_starts ) {
+        jsout.member( "saved_fail_at", saved_fail_at );
+    }
+    if( env_check_at != calendar::before_time_starts ) {
+        jsout.member( "env_check_at", env_check_at );
+    }
+    if( crafter_id.is_valid() ) {
+        jsout.member( "crafter_id", crafter_id );
+    }
+    if( passive_start_counter != 0 ) {
+        jsout.member( "passive_start_counter", passive_start_counter );
+    }
+    if( passive_end_counter != 0 ) {
+        jsout.member( "passive_end_counter", passive_end_counter );
+    }
+    if( awaiting_collection ) {
+        jsout.member( "awaiting_collection", awaiting_collection );
+    }
+    if( !reservations.empty() ) {
+        jsout.member( "reservations", reservations );
+    }
+    if( reserved_tile ) {
+        jsout.member( "reserved_tile", reserved_tile );
+    }
+    if( reservation_owner != 0 ) {
+        jsout.member( "reservation_owner", reservation_owner );
+    }
+    if( reservation_expires_at != calendar::before_time_starts ) {
+        jsout.member( "reservation_expires_at", reservation_expires_at );
+    }
+    if( reservation_search_attempts != 0 ) {
+        jsout.member( "reservation_search_attempts", reservation_search_attempts );
+    }
+    if( reservation_pool_fingerprint != 0 ) {
+        jsout.member( "reservation_pool_fingerprint", reservation_pool_fingerprint );
+    }
+    if( reservation_pause_reason != 0 ) {
+        jsout.member( "reservation_pause_reason", reservation_pause_reason );
+    }
     jsout.end_object();
+}
+
+static bool tool_in_group( const std::vector<tool_comp> &group,
+                           const step_tool_alloc &a )
+{
+    for( const tool_comp &tc : group ) {
+        if( tc.type == a.sel.comp.type && tc.count == a.sel.comp.count ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+// A charged allocation must draw from a real source; a none/cancel source would
+// let consumption mark its buckets without debiting any charge.  Non-charged
+// presence tools (count <= 0) may legitimately be usage_from::none.
+static bool alloc_source_valid( const step_tool_alloc &a )
+{
+    if( a.sel.comp.count <= 0 ) {
+        return true;
+    }
+    return a.sel.use_from == usage_from::player || a.sel.use_from == usage_from::map ||
+           a.sel.use_from == usage_from::both;
+}
+
+// True when saved allocations still line up with the recipe: one step-owned
+// allocation per step tool group, then one root-derived allocation per root
+// group on each timed step, each matching a tool type and count its group still
+// offers.  Also rejects corrupt counters and units that disagree with the
+// selected count, so a recipe edit or stale save forces a rebuild instead of
+// A recipe edit can change a quality id, level, tool type or count without changing any
+// index, so the recorded demand is compared rather than just the indices.  Batch size is
+// absent because requirement_data::operator* leaves qualities alone.
+static bool bindings_fit_recipe( const recipe &making, int step_index,
+                                 const std::vector<craft_reservation::binding> &bindings )
+{
+    if( bindings.empty() ) {
+        return true;
+    }
+    if( !making.has_steps() || step_index < 0 ||
+        step_index >= static_cast<int>( making.steps().size() ) ) {
+        return false;
+    }
+    const requirement_data &step_reqs = making.steps()[step_index].requirements;
+    const std::vector<std::vector<quality_requirement>> &quals = step_reqs.get_qualities();
+    const std::vector<std::vector<tool_comp>> &tools = step_reqs.get_tools();
+
+    std::map<std::pair<int, int>, std::set<int>> slots_by_group;
+
+    for( const craft_reservation::binding &b : bindings ) {
+        if( b.group_index < 0 || b.alternative_index < 0 ) {
+            return false;
+        }
+        const bool abstract_kind = b.kind == craft_reservation::provider_kind::intrinsic ||
+                                   b.kind == craft_reservation::provider_kind::environment;
+        if( abstract_kind != ( b.occurrence_slot >= 0 ) ) {
+            return false;
+        }
+        // Keyed by capability, so a quality binding names no item type.
+        if( b.kind == craft_reservation::provider_kind::intrinsic ) {
+            const bool quality_req = b.req == craft_reservation::requirement_kind::quality;
+            if( quality_req != b.pseudo_type.is_null() ) {
+                return false;
+            }
+        }
+
+        if( b.req == craft_reservation::requirement_kind::quality ) {
+            if( b.group_index >= static_cast<int>( quals.size() ) ||
+                b.alternative_index >= static_cast<int>( quals[b.group_index].size() ) ) {
+                return false;
+            }
+            const quality_requirement &q = quals[b.group_index][b.alternative_index];
+            if( q.type != b.qual || q.level != b.level || q.count != b.group_count ) {
+                return false;
+            }
+        } else if( b.req == craft_reservation::requirement_kind::presence_tool ) {
+            // Presence groups are numbered after the quality groups and follow the
+            // step's allocation order, so the step's own tool groups come first and the
+            // recipe-root ones after them.
+            const std::vector<std::vector<tool_comp>> &root_tools =
+                    making.root_requirements().get_tools();
+            int tool_group = b.group_index - static_cast<int>( quals.size() );
+            if( tool_group < 0 ) {
+                return false;
+            }
+            const std::vector<std::vector<tool_comp>> *groups = &tools;
+            if( tool_group >= static_cast<int>( tools.size() ) ) {
+                tool_group -= static_cast<int>( tools.size() );
+                groups = &root_tools;
+            }
+            if( tool_group >= static_cast<int>( groups->size() ) ||
+                b.alternative_index >= static_cast<int>( ( *groups )[tool_group].size() ) ) {
+                return false;
+            }
+            const tool_comp &t = ( *groups )[tool_group][b.alternative_index];
+            if( t.type != b.tool_type ||
+                std::max( 1, std::abs( t.count ) ) != b.group_count ) {
+                return false;
+            }
+        } else {
+            return false;
+        }
+
+        if( b.occurrence_slot >= 0 &&
+            !slots_by_group[ { static_cast<int>( b.req ), b.group_index } ].insert(
+                b.occurrence_slot ).second ) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// metering off an inconsistent allocation.
+static bool step_tool_allocs_fit_recipe(
+    const recipe &making, int batch, const std::vector<std::vector<step_tool_alloc>> &allocs )
+{
+    if( allocs.size() != making.steps().size() ) {
+        return false;
+    }
+    const int batch_mult = std::max( batch, 1 );
+    const std::vector<std::vector<tool_comp>> &root_groups =
+            making.root_requirements().get_tools();
+    int64_t total_time = 0;
+    for( const recipe_step &step : making.steps() ) {
+        total_time += std::max<int64_t>( step.time, 0 );
+    }
+    // Root shares are crafter-dependent per step but always sum to the tool's
+    // whole-craft total; check that invariant rather than the per-step split.
+    std::vector<int> root_unit_sum( root_groups.size(), 0 );
+    std::vector<int> root_unit_expected( root_groups.size(), -1 );
+    for( size_t s = 0; s < allocs.size(); ++s ) {
+        const recipe_step &step = making.steps()[s];
+        const std::vector<std::vector<tool_comp>> &step_groups =
+                step.requirements.get_tools();
+        const bool step_timed = total_time > 0 && step.time > 0;
+        std::vector<const step_tool_alloc *> owned;
+        std::vector<const step_tool_alloc *> root;
+        for( const step_tool_alloc &a : allocs[s] ) {
+            if( a.consumed_buckets < 0 || a.consumed_buckets > 20 || a.step_count_units < 0 ||
+                !alloc_source_valid( a ) ) {
+                return false;
+            }
+            ( a.root_derived ? root : owned ).push_back( &a );
+        }
+        if( owned.size() != step_groups.size() ||
+            root.size() != ( step_timed ? root_groups.size() : 0u ) ) {
+            return false;
+        }
+        for( size_t i = 0; i < owned.size(); ++i ) {
+            if( !tool_in_group( step_groups[i], *owned[i] ) ||
+                owned[i]->step_count_units != std::max( 0, owned[i]->sel.comp.count ) * batch_mult ) {
+                return false;
+            }
+        }
+        for( size_t j = 0; j < root.size(); ++j ) {
+            if( !tool_in_group( root_groups[j], *root[j] ) ) {
+                return false;
+            }
+            root_unit_sum[j] += root[j]->step_count_units;
+            root_unit_expected[j] = std::max( 0, root[j]->sel.comp.count ) * batch_mult;
+        }
+    }
+    for( size_t j = 0; j < root_groups.size(); ++j ) {
+        if( root_unit_expected[j] >= 0 && root_unit_sum[j] != root_unit_expected[j] ) {
+            return false;
+        }
+    }
+    return true;
 }
 
 void item::craft_data::deserialize( const JsonObject &obj )
@@ -2835,16 +2892,212 @@ void item::craft_data::deserialize( const JsonObject &obj )
     next_failure_point = obj.get_int( "next_failure_point", -1 );
     tools_to_continue = obj.get_bool( "tools_to_continue", false );
     batch_size = obj.get_int( "batch_size", -1 );
-    obj.read( "cached_tool_selections", cached_tool_selections );
+    if( obj.has_member( "step_tool_allocs" ) ) {
+        obj.read( "step_tool_allocs", step_tool_allocs );
+    } else if( making && !making->has_steps() ) {
+        // A stepless save carries a single flat whole-recipe selection list;
+        // migrate it into the one implicit step.  Step recipes instead rebuild
+        // per-step on resume (handled by the shape check below).
+        std::vector<comp_selection<tool_comp>> legacy;
+        obj.read( "cached_tool_selections", legacy );
+        step_tool_allocs.clear();
+        if( !legacy.empty() ) {
+            std::vector<step_tool_alloc> step0;
+            step0.reserve( legacy.size() );
+            for( const comp_selection<tool_comp> &sel : legacy ) {
+                step_tool_alloc alloc;
+                alloc.sel = sel;
+                alloc.step_count_units = std::max( 0, sel.comp.count ) * std::max( batch_size, 1 );
+                step0.push_back( alloc );
+            }
+            step_tool_allocs.push_back( std::move( step0 ) );
+        }
+    }
     current_step = obj.get_int( "current_step", 0 );
     step_progress = obj.get_float( "step_progress", 0.0 );
+    bool allocs_cleared = false;
+    bool bindings_stale = false;
     // Validate step index against the recipe's actual step count.
     if( making && making->has_steps() ) {
         int max_step = static_cast<int>( making->steps().size() ) - 1;
         current_step = std::clamp( current_step, 0, max_step );
+        // A legacy or recipe-edited save whose allocations no longer fit the
+        // recipe is dropped and rebuilt per-step on resume.
+        if( !step_tool_allocs_fit_recipe( *making, batch_size, step_tool_allocs ) ) {
+            step_tool_allocs.clear();
+            tools_to_continue = false;
+            allocs_cleared = true;
+        }
+    } else if( making ) {
+        current_step = 0;
+        step_progress = 0.0;
+        // A stepless craft carries a single implicit-step allocation; drop it on
+        // a corrupt counter, units that disagree with the selected count, or a
+        // tool shape that no longer covers the recipe's tool groups, so a resume
+        // rebuilds it rather than metering off stale data and skipping a group.
+        bool stepless_ok = step_tool_allocs.size() <= 1;
+        if( stepless_ok ) {
+            const int batch_mult = std::max( batch_size, 1 );
+            const std::vector<std::vector<tool_comp>> &tool_groups =
+                    making->simple_requirements().get_tools();
+            // An empty list means no implicit-step row; treat it as a zero-length
+            // row so the bijection below rejects it when the recipe has tools.
+            const std::vector<step_tool_alloc> empty_row;
+            const std::vector<step_tool_alloc> &step0 =
+                step_tool_allocs.empty() ? empty_row : step_tool_allocs[0];
+            for( const step_tool_alloc &a : step0 ) {
+                if( a.consumed_buckets < 0 || a.consumed_buckets > 20 ||
+                    a.step_count_units != std::max( 0, a.sel.comp.count ) * batch_mult ||
+                    !alloc_source_valid( a ) ) {
+                    stepless_ok = false;
+                    break;
+                }
+            }
+            // Require one allocation per tool group, each matching a distinct
+            // group, so a stale shape cannot leave a group unmetered.
+            if( stepless_ok && step0.size() != tool_groups.size() ) {
+                stepless_ok = false;
+            }
+            if( stepless_ok ) {
+                std::vector<bool> alloc_used( step0.size(), false );
+                for( const std::vector<tool_comp> &grp : tool_groups ) {
+                    bool matched = false;
+                    for( size_t k = 0; k < step0.size(); ++k ) {
+                        if( !alloc_used[k] && tool_in_group( grp, step0[k] ) ) {
+                            alloc_used[k] = true;
+                            matched = true;
+                            break;
+                        }
+                    }
+                    if( !matched ) {
+                        stepless_ok = false;
+                        break;
+                    }
+                }
+            }
+        }
+        if( !stepless_ok ) {
+            step_tool_allocs.clear();
+            tools_to_continue = false;
+            allocs_cleared = true;
+        }
     } else {
         current_step = 0;
         step_progress = 0.0;
+    }
+    step_plans.clear();
+    if( obj.has_array( "step_plans" ) ) {
+        for( JsonObject row : obj.get_array( "step_plans" ) ) {
+            row.allow_omitted_members();
+            attention_plan p;
+            p.choice = step_choice_from_string( row.get_string( "choice", "do_wait" ) );
+            if( row.has_member( "alarm_offset" ) ) {
+                time_duration d;
+                row.read( "alarm_offset", d );
+                p.alarm_offset = d;
+            }
+            step_plans.push_back( p );
+        }
+    }
+    if( obj.has_member( "passive_started_at" ) ) {
+        obj.read( "passive_started_at", passive_started_at );
+    }
+    if( obj.has_member( "ready_at" ) ) {
+        obj.read( "ready_at", ready_at );
+    }
+    if( obj.has_member( "alarm_at" ) ) {
+        obj.read( "alarm_at", alarm_at );
+    }
+    if( obj.has_member( "fail_at" ) ) {
+        obj.read( "fail_at", fail_at );
+    }
+    if( obj.has_member( "pause_started_at" ) ) {
+        obj.read( "pause_started_at", pause_started_at );
+    }
+    if( obj.has_member( "saved_ready_at" ) ) {
+        obj.read( "saved_ready_at", saved_ready_at );
+    }
+    if( obj.has_member( "saved_alarm_at" ) ) {
+        obj.read( "saved_alarm_at", saved_alarm_at );
+    }
+    if( obj.has_member( "saved_fail_at" ) ) {
+        obj.read( "saved_fail_at", saved_fail_at );
+    }
+    if( obj.has_member( "env_check_at" ) ) {
+        obj.read( "env_check_at", env_check_at );
+    }
+    if( obj.has_member( "crafter_id" ) ) {
+        obj.read( "crafter_id", crafter_id );
+    }
+    passive_start_counter = obj.get_int( "passive_start_counter", 0 );
+    passive_end_counter = obj.get_int( "passive_end_counter", 0 );
+    awaiting_collection = obj.get_bool( "awaiting_collection", false );
+    if( obj.has_member( "reservations" ) ) {
+        obj.read( "reservations", reservations );
+    }
+    if( obj.has_member( "reserved_tile" ) ) {
+        obj.read( "reserved_tile", reserved_tile );
+    }
+    reservation_owner = 0;
+    obj.read( "reservation_owner", reservation_owner );
+    if( obj.has_member( "reservation_expires_at" ) ) {
+        obj.read( "reservation_expires_at", reservation_expires_at );
+    }
+    reservation_search_attempts = obj.get_int( "reservation_search_attempts", 0 );
+    reservation_pool_fingerprint = 0;
+    obj.read( "reservation_pool_fingerprint", reservation_pool_fingerprint );
+    reservation_pause_reason = obj.get_int( "reservation_pause_reason", 0 );
+    if( making && making->has_steps() &&
+        !bindings_fit_recipe( *making, current_step, reservations ) ) {
+        bindings_stale = true;
+    }
+    // Recipe-edit migration: drop stale passive runtime on shape mismatch.
+    bool stale = false;
+    if( making && !disassembly ) {
+        // Scrubbed allocs leave nothing to meter; drop the passive runtime too so
+        // an in-flight unattended step freezes for rebuild instead of finishing
+        // unmetered on load.
+        if( allocs_cleared ) {
+            stale = true;
+        }
+        if( !step_plans.empty() && making->has_steps() &&
+            step_plans.size() != making->steps().size() ) {
+            stale = true;
+        }
+        if( !stale && passive_started_at != calendar::before_time_starts ) {
+            const bool no_steps = !making->has_steps();
+            const bool current_step_attended = making->has_steps()
+                                               && current_step >= 0
+                                               && current_step < static_cast<int>( making->steps().size() )
+                                               && making->steps()[current_step].attention != step_attention::unattended;
+            if( no_steps || current_step_attended ) {
+                stale = true;
+            }
+        }
+    }
+    if( stale ) {
+        step_plans.clear();
+        passive_started_at = calendar::before_time_starts;
+        ready_at = calendar::before_time_starts;
+        alarm_at = calendar::before_time_starts;
+        fail_at = calendar::before_time_starts;
+        pause_started_at = calendar::before_time_starts;
+        saved_ready_at = calendar::before_time_starts;
+        saved_alarm_at = calendar::before_time_starts;
+        saved_fail_at = calendar::before_time_starts;
+        env_check_at = calendar::before_time_starts;
+        passive_start_counter = 0;
+        passive_end_counter = 0;
+    }
+    if( stale || bindings_stale ) {
+        // reservation_owner is kept so reconciliation can still find and clean this
+        // craft's index record; clearing the expiry makes that record inert.
+        reservations.clear();
+        reserved_tile.reset();
+        reservation_expires_at = calendar::before_time_starts;
+        reservation_search_attempts = 0;
+        reservation_pool_fingerprint = 0;
+        reservation_pause_reason = 0;
     }
 }
 
@@ -3016,9 +3269,7 @@ void item::io( Archive &archive )
     archive.io( "temperature", temperature, units::from_kelvin( 0.f ) );
     archive.io( "recipe_charges", recipe_charges, 1 );
     archive.io( "template_traits", template_traits );
-    // Legacy: remove flag check/unset after 0.F
-    archive.io( "ethereal", ethereal, has_flag( flag_ETHEREAL_ITEM ) );
-    unset_flag( flag_ETHEREAL_ITEM );
+    archive.io( "ethereal", ethereal );
     archive.template io<const mtype>( "corpse", corpse, load_corpse,
     []( const mtype & i ) {
         return i.id.str();
@@ -3074,19 +3325,17 @@ void item::io( Archive &archive )
         std::swap( irradiation, poison );
     }
 
-    // Compatibility with old 0.F saves
-    // Tempreature used to be saved as 0.00001 K integer.
-    // specific_energy used to be saved as 0.00001 J/g integer.
-    if( temperature > 100000_K ) {
-        temperature /= 100000;
-        specific_energy /= 100000;
-    }
-
     // erase all invalid flags (not defined in flags.json)
     // warning was generated earlier on load
     erase_if( item_tags, [&]( const flag_id & f ) {
         return !f.is_valid();
     } );
+
+    hot_flags_own = 0;
+    const item::FlagsSetType &owned = item_tags;
+    for( const flag_id &f : owned ) {
+        hot_flags_own |= hot_bit_for( f );
+    }
 
     if( note_read ) {
         snip_id = SNIPPET.migrate_hash_to_id( note );
@@ -3541,10 +3790,7 @@ void vehicle::deserialize( const JsonObject &data )
     data.read( "velocity", velocity );
     data.read( "avg_velocity", avg_velocity );
     data.read( "falling", is_falling );
-    if( !data.read( "in_deep_water", in_deep_water ) ) {
-        // fallback; remove after 0.I
-        data.read( "floating", in_deep_water );
-    }
+    data.read( "in_deep_water", in_deep_water );
     data.read( "in_water", in_water );
     data.read( "flying", is_flying );
     data.read( "cruise_velocity", cruise_velocity );
@@ -3762,11 +4008,12 @@ void mission::deserialize( const JsonObject &jo )
         target.y() = ja.get_int( 1 );
     }
 
+
     if( jo.has_string( "dimension" ) ) {
-        dimension = jo.get_string( "dimension" );
+        dimension = dimension_id( jo.get_string( "dimension" ) );
     } else {
         // dimension is set as the main one
-        dimension = "";
+        dimension = dimension_world_default;
     }
 
     if( jo.has_string( "follow_up" ) ) {
@@ -3848,6 +4095,7 @@ void faction::deserialize( const JsonObject &jo )
     jo.read( "known_by_u", known_by_u );
     jo.read( "size", size );
     jo.read( "power", power );
+    jo.read( "steal_persist", steal_persist );
     if( jo.has_int( "food_supply" ) ) {
         int calories;
         // Legacy kcal value found, migrate to calories
@@ -3882,6 +4130,7 @@ void faction::serialize( JsonOut &json ) const
     json.member( "known_by_u", known_by_u );
     json.member( "size", size );
     json.member( "power", power );
+    json.member( "steal_persist", steal_persist );
     // pruned version of the food supply
     cata::list<std::pair<time_point, nutrients>> pruned_food_supply = _food_supply;
     for( auto it = pruned_food_supply.begin(); it != pruned_food_supply.end(); ) {
@@ -3964,34 +4213,7 @@ void Creature::load( const JsonObject &jsin )
 
     killer = nullptr; // see Creature::load
 
-    // TEMPORARY until 0.F
-    if( savegame_loading_version < 31 ) {
-        if( jsin.has_object( "effects" ) ) {
-            // Because JSON requires string keys we need to convert back to our bp keys
-            std::unordered_map<std::string, std::unordered_map<std::string, effect>> tmp_map;
-            jsin.read( "effects", tmp_map );
-            int key_num = 0;
-            for( const auto &maps : tmp_map ) {
-                const efftype_id id( maps.first );
-                if( !id.is_valid() ) {
-                    debugmsg( "Invalid effect: %s", id.c_str() );
-                    continue;
-                }
-                for( const auto &i : maps.second ) {
-                    if( !( std::istringstream( i.first ) >> key_num ) ) {
-                        key_num = 0;
-                    }
-                    const bodypart_str_id &bp = convert_bp( static_cast<body_part>( key_num ) );
-                    const effect &e = i.second;
-
-                    ( *effects )[id][bp] = e;
-                    on_effect_int_change( id, e.get_intensity(), bp );
-                }
-            }
-        }
-    } else {
-        jsin.read( "effects", *effects );
-    }
+    jsin.read( "effects", *effects );
 
     migrate_effects();
 
@@ -4016,21 +4238,7 @@ void Creature::load( const JsonObject &jsin )
     jsin.read( "num_blocks_bonus", num_blocks_bonus );
     jsin.read( "num_dodges_bonus", num_dodges_bonus );
 
-    if( jsin.has_object( "armor_bonus" ) ) {
-        jsin.read( "armor_bonus", armor_bonus );
-    } else {
-        // Legacy load conversion, remove after 0.H releases
-        float bash_bonus = 0;
-        float cut_bonus = 0;
-        float bullet_bonus = 0;
-        jsin.read( "armor_bash_bonus", bash_bonus );
-        jsin.read( "armor_cut_bonus", cut_bonus );
-        jsin.read( "armor_bullet_bonus", bullet_bonus );
-        armor_bonus.clear();
-        armor_bonus.emplace( damage_bash, bash_bonus );
-        armor_bonus.emplace( damage_cut, cut_bonus );
-        armor_bonus.emplace( damage_bullet, bullet_bonus );
-    }
+    jsin.read( "armor_bonus", armor_bonus );
 
     jsin.read( "speed", speed_base );
 
@@ -4147,7 +4355,15 @@ void mm_submap::serialize( JsonOut &jsout ) const
     jsout.end_array();
 }
 
-void mm_submap::deserialize( int version, const JsonArray &ja )
+static std::string migrate_memorized_terrain( const std::string &ter_id )
+{
+    if( auto it = ter_migrations.find( ter_str_id( ter_id ) ); it != ter_migrations.end() ) {
+        return it->second.first.str();
+    }
+    return ter_id;
+}
+
+void mm_submap::deserialize( int, const JsonArray &ja )
 {
     size_t submap_array_idx = 0;
 
@@ -4161,50 +4377,20 @@ void mm_submap::deserialize( int version, const JsonArray &ja )
                 remaining -= 1;
             } else {
                 const JsonArray ja_tile = ja.get_array( submap_array_idx++ );
-                if( version < 1 ) { // legacy, remove after 0.H comes out
-                    std::string id = ja_tile.get_string( 0 );
-                    if( string_starts_with( id, "t_" ) ) {
-                        tile.set_ter_id( std::move( id ) );
-                        tile.set_ter_subtile( ja_tile.get_int( 1 ) );
-                        tile.set_ter_rotation( ja_tile.get_int( 2 ) );
-                        tile.set_dec_id( "" );
-                        tile.set_dec_subtile( 0 );
-                        tile.set_dec_rotation( 0 );
-                    } else {
-                        tile.set_ter_id( "" );
-                        tile.set_ter_subtile( 0 );
-                        tile.set_ter_rotation( 0 );
-                        tile.set_dec_id( std::move( id ) );
-                        tile.set_dec_subtile( ja_tile.get_int( 1 ) );
-                        const int legacy_rotation = ja_tile.get_int( 2 );
-                        if( string_starts_with( tile.dec_id, "vp_" ) ) {
-                            // legacy vehicle rotation needs to be converted from 0-360 degrees
-                            // to 0-3 tileset rotation
-                            const units::angle legacy_angle = units::from_degrees( legacy_rotation );
-                            tile.set_dec_rotation( angle_to_dir4( 270_degrees - legacy_angle ) );
-                        } else {
-                            tile.set_dec_rotation( legacy_rotation );
-                        }
-                    }
-                    tile.symbol = ja_tile.get_int( 3 );
-                    if( ja_tile.size() > 4 ) {
-                        remaining = ja_tile.get_int( 4 ) - 1;
-                    }
+
+                remaining = ja_tile.get_int( 0 ) - 1;
+                tile.symbol = ja_tile.get_int( 1 );
+                tile.set_ter_id( migrate_memorized_terrain( ja_tile.get_string( 2 ) ) );
+                tile.ter_subtile = ja_tile.get_int( 3 );
+                tile.ter_rotation = ja_tile.get_int( 4 );
+                if( ja_tile.size() > 5 ) {
+                    tile.set_dec_id( ja_tile.get_string( 5 ) );
+                    tile.dec_subtile = ja_tile.get_int( 6 );
+                    tile.dec_rotation = ja_tile.get_int( 7 );
                 } else {
-                    remaining = ja_tile.get_int( 0 ) - 1;
-                    tile.symbol = ja_tile.get_int( 1 );
-                    tile.set_ter_id( ja_tile.get_string( 2 ) );
-                    tile.ter_subtile = ja_tile.get_int( 3 );
-                    tile.ter_rotation = ja_tile.get_int( 4 );
-                    if( ja_tile.size() > 5 ) {
-                        tile.set_dec_id( ja_tile.get_string( 5 ) );
-                        tile.dec_subtile = ja_tile.get_int( 6 );
-                        tile.dec_rotation = ja_tile.get_int( 7 );
-                    } else {
-                        tile.set_dec_id( "" );
-                        tile.dec_subtile = 0;
-                        tile.dec_rotation = 0;
-                    }
+                    tile.set_dec_id( "" );
+                    tile.dec_subtile = 0;
+                    tile.dec_rotation = 0;
                 }
             }
             // Try to avoid assigning to save up on memory
@@ -4241,15 +4427,9 @@ void mm_region::deserialize( const JsonValue &ja )
 {
     int version;
     JsonArray region_json;
-
-    if( ja.test_array() ) { // legacy, remove after 0.H comes out
-        version = 0;
-        region_json = ja;
-    } else {
-        JsonObject region_obj = ja;
-        version = region_obj.get_int( "version" );
-        region_json = region_obj.get_array( "data" );
-    }
+    JsonObject region_obj = ja;
+    version = region_obj.get_int( "version" );
+    region_json = region_obj.get_array( "data" );
 
     for( size_t y = 0; y < MM_REG_SIZE; y++ ) {
         // NOLINTNEXTLINE(modernize-loop-convert)
@@ -4693,11 +4873,7 @@ void cata_variant::deserialize( const JsonValue &jsin )
         *this = cata_variant::make<cata_variant_type::bool_>( jsin.get_bool() );
     } else {
         JsonArray ja = jsin.get_array();
-        // FIXME: add_type migration - remove after 0.G
-        if( ja.get_string( 0 ) == "add_type" ) {
-            type_ = cata_variant_type::addiction_id;
-            value_ = add_type_legacy_conv( ja.get_string( 1 ) );
-        } else if( !( ja.read_next( type_ ) && ja.read_next( value_ ) ) ) {
+        if( !( ja.read_next( type_ ) && ja.read_next( value_ ) ) ) {
             ja.throw_error( "Failed to read cata_variant" );
         }
         if( ja.size() > 2 ) {
@@ -4717,23 +4893,9 @@ void event_multiset::serialize( JsonOut &jsout ) const
 void event_multiset::deserialize( const JsonObject &jo )
 {
     jo.allow_omitted_members();
-    JsonArray events = jo.get_array( "event_counts" );
-    if( !events.empty() && events.get_array( 0 ).has_int( 1 ) ) {
-        // TEMPORARY until 0.F
-        // Read legacy format with just ints
-        std::vector<std::pair<cata::event::data_type, int>> copy;
-        jo.read( "event_counts", copy );
-        summaries_.clear();
-        for( const std::pair<cata::event::data_type, int> &p : copy ) {
-            event_summary summary{ p.second, calendar::start_of_game, calendar::start_of_game };
-            summaries_.emplace( p.first, summary );
-        }
-    } else {
-        // Read actual summaries
-        std::vector<std::pair<cata::event::data_type, event_summary>> copy;
-        jo.read( "event_counts", copy );
-        summaries_ = { copy.begin(), copy.end() };
-    }
+    std::vector<std::pair<cata::event::data_type, event_summary>> copy;
+    jo.read( "event_counts", copy );
+    summaries_ = { copy.begin(), copy.end() };
 }
 
 void stats_tracker::serialize( JsonOut &jsout ) const
@@ -4752,45 +4914,6 @@ void stats_tracker::deserialize( const JsonObject &jo )
         d.second.set_type( d.first );
     }
     jo.read( "initial_scores", initial_scores );
-
-    // TODO: remove after 0.H
-    // migration for saves made before addition of event_type::game_avatar_new
-    event_multiset gan_evts = get_events( event_type::game_avatar_new );
-    if( !gan_evts.count() ) {
-        event_multiset gs_evts = get_events( event_type::game_start );
-        avatar &u = get_avatar();
-        // check if character ID set, if loadsave, the ID will not be -1
-        // if it's an old save without event_type::game_avatar_new, the event need to be done
-        // this function is invoked when load memorial, on this situation start a new game, below shouldn't be invoked.
-        if( u.getID() != character_id( -1 ) ) {
-            if( gs_evts.count() ) {
-                auto gs_evt = gs_evts.first().value();
-                cata::event::data_type gs_data = gs_evt.first;
-
-                // retroactively insert starting avatar
-                cata::event::data_type gan_data( gs_data );
-                gan_data["is_new_game"] = cata_variant::make<cata_variant_type::bool_>( true );
-                gan_data["is_debug"] = cata_variant::make<cata_variant_type::bool_>( false );
-                gan_data.erase( "game_version" );
-                get_event_bus().send( cata::event( event_type::game_avatar_new, calendar::start_of_game,
-                                                   std::move( gan_data ) ) );
-
-                // retroactively insert current avatar, if different from starting avatar
-                // we don't know when they took over, so just use current time point
-                if( u.getID() != gs_data["avatar_id"].get<cata_variant_type::character_id>() ) {
-                    get_event_bus().send( cata::event::make<event_type::game_avatar_new>( false, false,
-                                          u.getID(), u.name, u.custom_profession ) );
-                }
-            } else {
-                // last ditch effort for really old saves that don't even have event_type::game_start
-                // treat current avatar as the starting avatar; abuse is_new_game=false to flag such cases
-                std::swap( calendar::turn, calendar::start_of_game );
-                get_event_bus().send( cata::event::make<event_type::game_avatar_new>( false, false,
-                                      u.getID(), u.name, u.custom_profession ) );
-                std::swap( calendar::turn, calendar::start_of_game );
-            }
-        }
-    }
 }
 
 namespace

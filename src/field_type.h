@@ -118,7 +118,7 @@ struct field_intensity_level {
     int monster_spawn_radius = 0;
     mongroup_id monster_spawn_group;
     float light_emitted = 0.0f;
-    light_color_rgb light_color;
+    light_color_rgb light_color{};
     float local_light_override = -1.0f;
     float translucency = 0.0f;
     int concentration = 0;
@@ -134,6 +134,10 @@ extern const field_type_str_id fd_acid;
 extern const field_type_str_id fd_acid_vent;
 extern const field_type_str_id fd_bile;
 extern const field_type_str_id fd_blood;
+extern const field_type_str_id fd_blood_footprint_n;
+extern const field_type_str_id fd_blood_footprint_w;
+extern const field_type_str_id fd_blood_footprint_s;
+extern const field_type_str_id fd_blood_footprint_e;
 extern const field_type_str_id fd_blood_insect;
 extern const field_type_str_id fd_blood_invertebrate;
 extern const field_type_str_id fd_blood_veggy;
@@ -216,6 +220,7 @@ struct field_type {
         field_immunity_data immunity_data;
 
         std::set<mtype_id> immune_mtypes;
+        std::set<mtype_id> block_mtypes;
 
         int priority = 0;
         time_duration half_life = 0_turns;

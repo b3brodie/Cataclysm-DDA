@@ -119,31 +119,6 @@ class iuse_transform : public iuse_actor
         void info( const item &, std::vector<iteminfo> & ) const override;
 };
 
-class unpack_actor : public iuse_actor
-{
-    public:
-        /** The itemgroup from which we unpack items from */
-        item_group_id unpack_group;
-
-        /** Whether or not the items from the group should spawn fitting */
-        bool items_fit = false;
-
-        /**
-         *  If the item is filthy, at what volume (held) threshold should the
-         *   items unpacked be made filthy
-         */
-        units::volume filthy_vol_threshold = 0_ml;
-
-        explicit unpack_actor( const std::string &type = "unpack" ) : iuse_actor( type ) {}
-
-        ~unpack_actor() override = default;
-        void load( const JsonObject &obj, const std::string & ) override;
-        using iuse_actor::use;
-        std::optional<int> use( Character *p, item &it, map *here, const tripoint_bub_ms & ) const override;
-        std::unique_ptr<iuse_actor> clone() const override;
-        void info( const item &, std::vector<iteminfo> &dump ) const override;
-};
-
 class message_iuse : public iuse_actor
 {
     public:
@@ -574,6 +549,13 @@ class salvage_actor : public iuse_actor
         std::optional<int> try_to_cut_up( Character &p, item &cutter, item_location &cut ) const;
         int time_to_cut_up( const item &it ) const;
         bool valid_to_cut_up( const Character *p, const item &it ) const;
+
+        /*
+        * params:
+        * cut - thing to cut up, obviously.
+        * efficiency - percent of basic components (by mass) to return, normalized at 1.0. 1.0 == 100% returns.
+        */
+        static std::map<itype_id, int> salvage_results( item_location cut, double efficiency );
 
         explicit salvage_actor( const std::string &type = "salvage" ) : iuse_actor( type ) {}
 
@@ -1018,6 +1000,8 @@ class place_trap_actor : public iuse_actor
             int practice = 0;
             /** Move points that are used when placing the trap. */
             int moves = 100;
+            /** Move points the character spends placing this trap, after skill and proficiencies. */
+            int move_cost( const Character &you ) const;
             void load( const JsonObject &obj );
             void deserialize( const JsonObject &obj ) {
                 load( obj );

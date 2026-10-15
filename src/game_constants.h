@@ -10,6 +10,8 @@
 // Fixed window sizes.
 constexpr int EVEN_MINIMUM_TERM_WIDTH = 80;
 constexpr int EVEN_MINIMUM_TERM_HEIGHT = 24;
+constexpr int MAXIMUM_TERM_WIDTH = 960;
+constexpr int MAXIMUM_TERM_HEIGHT = 270;
 constexpr int HP_HEIGHT = 14;
 constexpr int HP_WIDTH = 7;
 constexpr int MINIMAP_HEIGHT = 7;
@@ -54,6 +56,9 @@ constexpr int VEHICLE_HANDLING_PENALTY = 80;
 
 // Amount by which to charge an item for each unit of plutonium cell.
 constexpr int PLUTONIUM_CHARGES = 500;
+
+// "Natural" damage nullification for durable veh parts, even if no damage reduction is defined
+constexpr int VEH_PART_DMG_REDUCTION_FROM_DURABILITY_CAP = 20;
 
 // Temperature constants.
 namespace temperatures

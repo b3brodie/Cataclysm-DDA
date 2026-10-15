@@ -109,6 +109,7 @@ These fields can be read by any ITEM regardless of subtypes:
     "condition": "leather",       // The condition to check for.
     "name": { "str": "pair of leather socks", "str_pl": "pairs of leather socks" } // Name field, same rules as above.
 } ],
+"display_type": "BY_WEIGHT",      // (Optional) Whether this item should be displayed by weight or volume instead of count. Valid entries are `DEFAULT`(no need to put anything), `BY_LENGTH`, `BY_VOLUME`, and `BY_WEIGHT`.
 "container": "null",             // What container (if any) this item should spawn within
 "repairs_like": "scarf",          // If this item does not have recipe, what item to look for a recipe for when repairing it.
 "color": "blue",                 // Color of the item symbol.
@@ -355,11 +356,7 @@ Armor can be defined like this:
 "environmental_protection" : 0,     //  (Optional, default = 0) How much environmental protection it affords
 "encumbrance" : 0,                  // Base encumbrance (unfitted value)
 "max_encumbrance" : 0,              // When a character is completely full of volume, the encumbrance of a non-rigid storage container will be set to this. Otherwise it'll be between the encumbrance and max_encumbrance following the equation: encumbrance + (max_encumbrance - encumbrance) * non-rigid volume / non-rigid capacity.  By default, max_encumbrance is encumbrance + (non-rigid volume / 250ml).
-"sided": true,                      // (Optional, default false) If true, this is a sided armor. Sided armor is armor that even though it describes covering, both legs, both arms, both hands, etc. actually only covers one "side" at a time but can be moved back and forth between sides at will by the player.
-"coverage": 80,                     // What percentage of body part is covered (in general)
-"cover_melee": 60,                  // What percentage of body part is covered (against melee)
-"cover_ranged": 45,                 // What percentage of body part is covered (against ranged)
-"cover_vitals": 10,                 // What percentage of critical hit damage is mitigated
+"sided": true,                      // (Optional, default false) If true, this is a sided armor. Sided armor is armor that even though it describes covering, both legs, both arms, both hands, etc. actually only covers one "side" at a time but can be moved back and forth between sides at will by the player.   
 "material_thickness" : 1,           // Thickness of material, in millimeter units (approximately).  Ordinary clothes range from 0.1 to 0.5. Particularly rugged cloth may reach as high as 1-2mm, and armor or protective equipment can range as high as 10 or rarely more.
 "power_armor" : false,              // If this is a power armor item (those are special).
 "max_worn": 10,                     // How many of these items can be worn.  Defaults to 2.
@@ -380,15 +377,15 @@ Encumbrance and coverage can be defined on a piece of armor as such:
     "breathability": "AVERAGE",
     "layers": [ "SKINTIGHT" ],
     "rigid_layer_only": true,
-    "coverage": 95,
-    "cover_melee": 95,
-    "cover_ranged": 50,
-    "cover_vitals": 5,
+    "coverage": 95,					// What percentage of body part is covered (in general)
+    "cover_melee": 95,				// What percentage of body part is covered (against melee)
+    "cover_ranged": 50,				// What percentage of body part is covered (against ranged)
+    "cover_vitals": 5,				// What percentage of critical hit damage is mitigated
     "covers": [ "torso" ],
     "specifically_covers": [ "torso_upper", "torso_neck", "torso_lower" ],
     "material": [
       { "type": "cotton", "covered_by_mat": 100, "thickness": 0.2 },
-      { "type": "plastic", "covered_by_mat": 15, "thickness": 0.8, "ignore_sheet_thickness": "true" }
+      { "type": "plastic", "covered_by_mat": 15, "thickness": 0.8, "ignore_sheet_thickness": true }
     ]
   },
   {
@@ -692,6 +689,7 @@ CBMs can be defined like this:
 "tool" : "apparatus",       // Tool required to be eaten/drank
 "charges" : 4,              // Number of uses when spawned
 "stack_size" : 8,           // (Optional) How many uses are in the above-defined volume. If omitted, is the same as 'charges'
+"seasonings": [ "seasonings_universal", "seasonings_meat" ],  // Item groups that define what items will be automatically consumed alongside this item automatically. Defaults to "seasonings_universal" if undefined.
 "fun" : 50                  // Morale effects when used
 "freezing_point": 32,       // (Optional) Temperature in C at which item freezes, default is water (32F/0C)
 "cooks_like": "meat_cooked",         // (Optional) If the item is used in a recipe, replaces it with its cooks_like
@@ -703,7 +701,6 @@ CBMs can be defined like this:
   { "type": "flesh", "portion": 3 }, // See Generic Item attributes for type and portion details
   { "type": "wheat", "portion": 5 }
 ],
-"primary_material": "meat",       // Overwrites generic item "material" field. Materials determine specific heat.
 "rot_spawn": {                    // Defines what creature would be spawned when this item rots away. Primarily used for eggs
   "group": "GROUP_EGG_CHICKEN",   // id of monster group that would be spawned. Cannot be used with "monster"
   "monster": "mon_moose_calf",    // id of a monster that would be spawned. Cannot be used with "group"
@@ -751,6 +748,7 @@ Any Item can be a container. To add the ability to contain things to an item, yo
         "volume": 8,                        // How loud the noise would be
         "chance": 60                        // Chance to generate a noise per move, from 0 to 100
       }, 
+    "id": "battery",                          // Optional handle referenced by `firing_requirements` / `consumption_per_use` on the parent item; only required on pockets that get referenced. Validated unique per item at load time.
     "default_magazine": "medium_battery_cell",       // Define the default magazine this item would have when spawned. Can be overwritten by item group
     "ammo_restriction": { "44": 5, "9mm": 10, }, // Restrict pocket to a given ammunition_type(s) and respective counts. The container will only hold one ammunition_type at a time but can hold multiple different items in that type. This field is mutually exclusive with "min_item_volume", "max_item_volume", "max_contains_volume", "max_contains_weight", "max_item_length", "min_item_length", "extra_encumbrance", "volume_encumber_modifier", "ripoff" and "activity_noise".
     "flag_restriction": [ "FLAG1", "FLAG2" ],        // Items can only be placed into this pocket if they have a flag that matches one of these flags.
@@ -859,6 +857,10 @@ Guns can be defined like this:
   [ "FOOBAR", "Volley", 2, "VOLLEY" ] // Fourth value is an optional flags. Possible flags are:
   [ "FOOBAR2", "alternative_notation", 3, [ "VOLLEY" ] ] // VOLLEY - all rounds shot by this mode would shoot at once, 
 ],                                                       // in that the recoil would be applied not after each shot, but only in the end
+"firing_requirements": {          // Optional. Multimag per-shot consumption keyed by gun mode. Mutually exclusive with non-zero `energy_drain` and non-default `ammo_to_fire`. Each entry references a `pocket_data.id` on a MAGAZINE_WELL pocket or an integral MAGAZINE pocket with `ammo_restriction`. Every base mode listed in `modes` must have an explicit entry; a gunmod-added mode (via `mode_modifier`) uses the gunmod's own `mode_firing_requirements` for that mode, or inherits DEFAULT cost when the gunmod provides none. `qty` must be >= 1.
+  "DEFAULT": [ { "pocket": "ammo", "qty": 1 }, { "pocket": "battery", "qty": 5 } ],
+  "BURST":   [ { "pocket": "ammo", "qty": 3 }, { "pocket": "battery", "qty": 15 } ]
+},
 "reload": 450,             // Amount of time to reload, 100 = 1 second = 1 "turn"
 "reload_noise": "Ping!",   // Sound, that would be produced, when the gun is reloaded; seems to not work
 "reload_noise_volume": 4,  // how loud the reloading is
@@ -883,6 +885,8 @@ Gun mods can be defined like this:
 "ammo_modifier": [ "57" ],     // Optional field which if specified modifies parent gun to use these ammo types
 "magazine_adaptor": [ [ "223", [ "stanag30" ] ] ], // Optional field which changes the types of magazines the parent gun accepts
 "pocket_mods": [ { "pocket_type": "MAGAZINE_WELL", "item_restriction": [ "ai_338mag", "ai_338mag_10" ] } ], // Optional field, alters the original pockets of the weapon ; share the syntax with pocket_data; pocket type MAGAZINE and MAGAZINE_WELL are always overwritten, pocket type CONTAINER is always added to existing pockets; for MAGAZINE and MAGAZINE_WELL both ammo_modifier and magazine_adaptor fields are required to correctly migrate ammo type; type: TOOLMOD can use this field also
+"consumption_mods": [ { "pocket": "power", "multiply": 0.5 }, { "pocket": "ammo", "set": 2 } ], // Optional (GUNMOD or TOOLMOD). Adjusts the host's multimag per-use consumption of a pocket, by `pocket_data.id`. "set" (>= 1) overrides the resolved per-use qty; "multiply" (> 0) scales it. Across all installed mods the smallest "set" wins, then the product of every "multiply".
+"capacity_mods": [ { "pocket": "ammo", "multiply": 1.5 } ], // Optional (GUNMOD or TOOLMOD). Scales the ammo capacity of a host integral MAGAZINE pocket, by `pocket_data.id`. "multiply" (> 0). A MAGAZINE_WELL target is ignored (its capacity is the loaded magazine's). Multiple mods on one pocket combine by product.
 "damage_modifier": { "damage_type": "bullet", "amount": -1 }, // Optional field increasing or decreasing base gun damage
 "dispersion_modifier": 15,     // Optional field increasing or decreasing base gun dispersion
 "loudness_modifier": 4,        // Optional field increasing or decreasing base guns loudness
@@ -909,6 +913,8 @@ Gun mods can be defined like this:
 "consume_divisor": 10,         // Divide damage against mod by this amount (default 1)
 "handling_modifier": 4,        // Improve gun handling. For example a forward grip might have 6, a bipod 18
 "mode_modifier": [ [ "AUTO", "auto", 4 ] ], // Modify firing modes of the gun, to give AUTO or REACH for example
+"hide_modes": [ "DEFAULT" ],   // Optional. Firing-mode ids removed from the final merged mode set when this gunmod is installed. Global, id-based kill switch (can also hide a mode another mod added). To replace a host mode, add a new id via `mode_modifier` and hide the original.
+"mode_firing_requirements": { "REGULATED": [ { "pocket": "ammo", "qty": 1 }, { "pocket": "power", "qty": 1 } ] }, // Optional. Multimag per-pocket cost for the modes this gunmod adds or overrides via `mode_modifier`, keyed by the (unprefixed) mode id. Each entry references a `pocket_data.id` on the HOST gun. A mode added in `mode_modifier` without an entry here inherits the host's DEFAULT cost. Distinct key from the itype-level `firing_requirements` (which is an item's own consumption).
 "barrel_length": "45 mm",       // Specify a direct barrel length for this gun mod. If used only the first mod with a barrel length will be counted
 "overheat_threshold_modifier": 100,   // Add a flat amount to gun's "overheat_threshold"; if the threshold is 100, and the modifier is 10, the result is 110; if the modifier is -25, the result is 75
 "overheat_threshold_multiplier": 1.5, // Multiply gun's "overheat_threshold" by this number; if the threshold is 100, and the multiplier is 1.5, the result is 150; if the multiplier is 0.8, the result is 80
@@ -971,6 +977,8 @@ Gun mods can be defined like this:
 "initial_charges": 75,     // Charges when spawned
 "max_charges": 75,         // Maximum charges tool can hold
 "power_draw": "50 mW",     // Energy consumption per second
+"consumption_per_use": [ { "pocket": "oxygen", "qty": 2 }, { "pocket": "fuel", "qty": 1 } ], // Optional. Multimag per-activation consumption. Each entry references a `pocket_data.id` on a MAGAZINE_WELL pocket or an integral MAGAZINE pocket with `ammo_restriction`; `qty` must be >= 1. Mutually exclusive with `charges_per_use` and `power_draw` on the same item. Active tools drain once per turn by default, or once per `turns_per_charge` turns if set.
+"legacy_charges_per_use_factor": 5, // Optional, default 1. Set on multimag tools converted from a legacy `charges_per_use=N` (N>1) so existing recipes that pass raw charge counts get translated to uses (uses = qty / factor). Non-divisible requests trigger a debugmsg and consume nothing.
 "revert_to": "torch_done", // Transforms into item when charges are expended. Intended to be replaced by transform_into, which it's mutually exclusive with
 "transform_into": {        // Extended transformation info. To replace "revert_to", with which it's mutually exclusive. Optional.
   "target": "torch_done",  // Item to transform into.
@@ -1016,7 +1024,6 @@ Gun mods can be defined like this:
   { "GROWTH_OVERGROWN": "1 hour" }        // NOTE: GROWTH_OVERGROWN is optional, but if used should be a short duration. Or else it may fail to plant because the overgrown(dead) crops would not 'grow'!
 ],
 "growth_temp": "7 C",                     // (optional, default 10 C). Celsius (C) or milli-Celsius(mC). Temperature required on the days this seed is planted and for every day with a growth stage. If below the required temperature it simply won't be plantable.
-"fruit_div": 2, // (optional, default is 1). Final amount of fruit charges produced is divided by this number. Works only if fruit item is counted by charges.
 "required_terrain_flag": "PLANTABLE" // A tag that terrain and furniture would need to have in order for the seed to be plantable there.
 // Default is "PLANTABLE", and using this will cause any terain the plant is wrown on to turn into dirt once the plant is planted, unless furniture is used.
 // Using any other tag will not turn the terrain into dirt.
@@ -1338,6 +1345,15 @@ The contents of `use_action` fields can either be a string indicating a built-in
   "not_ready_msg": "The yeast has not been done The yeast isn't done culturing yet." // A message, shown when the item is not old enough
 },
 "use_action": {
+  "type": "repair_item",                            // Place NPC of specific class on the map
+  "item_action_type": "repair_fabric",              // Possible options are "repair_fabric" and "repair_metal"
+  "materials": [ "iron", "cotton", "candyfloss" ],  // Array of material types that the item can repair
+  "skill": "swimming",                              // The skill used for repairing
+  "tool_quality": 0,                                // Integer, used in the formula "( 10 + 2 * skill - 2 * difficulty + tool_quality / 5.0f ) / 100.0f" to determine success
+  "cost_scaling": 0.1,                              // Unknown
+  "move_cost": 100                                  // How many move points the action takes
+},
+"use_action": {
   "type": "firestarter",  // Start a fire, like with a lighter.
   "moves": 15,            // Number of moves it takes to start the fire. This is reduced by survival skill
   "moves_slow": 1500,     // Number of moves it takes to start a fire on something that is difficult to ignite. This is reduced by survival skill
@@ -1524,6 +1540,15 @@ The contents of `use_action` fields can either be a string indicating a built-in
   "need_worn": true,          // (optional) If the item has to be worn to cast the spell
   "need_wielding": true,      // (optional) If the item has to be wielded to cast the spell
   "mundane": true             // (optional) This spell uses magic-related features, but is not magic itself. The description is changed from "This item casts spell_name at level spell_level" to "This item when activated: spell_name"
+},
+"use_action": {
+  "type": "attach_molle",   // Attach an item to this item's MOLLE webbing
+  "size": 10,               // Total MOLLE space available; each attached item uses some of it
+  "moves": 300              // Move points to attach an item.  Has no effect currently
+},
+"use_action": {
+  "type": "detach_molle",   // Detach an item from this item's MOLLE webbing
+  "moves": 300              // Move points to detach an item.  Has no effect currently
 },
 ```
 

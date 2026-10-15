@@ -6,6 +6,7 @@
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -60,7 +61,9 @@
 #include "type_id.h"
 #include "units.h"
 #include "vehicle.h"
+#include "visitable.h"
 #include "vpart_position.h"
+#include "weakpoint.h"
 
 static const ammo_effect_str_id ammo_effect_NULL_SOURCE( "NULL_SOURCE" );
 
@@ -84,7 +87,6 @@ static const furn_str_id furn_f_machinery_electronic( "f_machinery_electronic" )
 
 static const itype_id fuel_type_none( "null" );
 static const itype_id itype_e_handcuffs( "e_handcuffs" );
-static const itype_id itype_rm13_armor_on( "rm13_armor_on" );
 
 static const json_character_flag json_flag_EMP_ENERGYDRAIN_IMMUNE( "EMP_ENERGYDRAIN_IMMUNE" );
 static const json_character_flag json_flag_EMP_IMMUNE( "EMP_IMMUNE" );
@@ -122,6 +124,8 @@ static constexpr float MIN_EFFECTIVE_VELOCITY = 70.0f;
 static constexpr float MIN_FRAGMENT_DENSITY = 0.001f;
 
 
+namespace
+{
 //reads shrapnel data as object or int
 class shrapnel_reader : public generic_typed_reader<shrapnel_reader>
 {
@@ -141,6 +145,7 @@ class shrapnel_reader : public generic_typed_reader<shrapnel_reader>
             return ret;
         }
 };
+} // namespace
 
 void explosion_data::deserialize( const JsonObject &jo )
 {
@@ -351,7 +356,7 @@ static void do_blast( map *m, const Creature *source, const tripoint_bub_ms &p, 
 
         if( const optional_vpart_position vp = m->veh_at( pt ) ) {
             // TODO: Make this weird unit used by vehicle::damage more sensible
-            vp->vehicle().damage( m[0], vp->part_index(), force,
+            vp->vehicle().damage( *m, vp->part_index(), force,
                                   fire ? damage_heat : damage_bash, false );
         }
 
@@ -484,9 +489,16 @@ static std::vector<tripoint_bub_ms> shrapnel( map *m, const Creature *source,
             frag.shrapnel = true;
             frag.proj.speed = cloud.velocity;
             frag.proj.impact = damage_instance( damage_bullet, damage );
+
+            weakpoint_attack wp_attack;
+            wp_attack.type = weakpoint_attack::attack_type::PROJECTILE;
+            wp_attack.target = critter;
+            wp_attack.accuracy = 0.f;
+
             for( int i = 0; i < hits; ++i ) {
                 frag.missed_by = rng_float( 0.05, 1.0 / critter->ranged_target_size() );
-                critter->deal_projectile_attack( m, mutable_source, frag, frag.missed_by, false );
+                critter->deal_projectile_attack( m, mutable_source, frag, frag.missed_by, false, wp_attack );
+
                 add_msg_debug( debugmode::DF_EXPLOSION, "Shrapnel hit %s at %d m/s at a distance of %d",
                                critter->disp_name(),
                                frag.proj.speed, rl_dist( src, target ) );
@@ -504,7 +516,7 @@ static std::vector<tripoint_bub_ms> shrapnel( map *m, const Creature *source,
         }
         if( m->impassable( target ) ) {
             if( optional_vpart_position vp = m->veh_at( target ) ) {
-                vp->vehicle().damage( m[0], vp->part_index(), damage / 10 );
+                vp->vehicle().damage( *m, vp->part_index(), damage / 10 );
             } else {
                 m->bash( target, damage / 100, true );
             }
@@ -537,6 +549,13 @@ bool explosion_processing_active()
 {
     return process_explosions_in_progress;
 }
+
+queued_explosion::queued_explosion( const Creature *source, const tripoint_abs_ms &pos,
+                                    const explosion_data &data )
+    : source( source ? const_cast<Creature *>( source )->get_safe_reference()
+              : safe_reference<Creature>() )
+    , pos( pos )
+    , data( data ) {}
 
 void explosion( const Creature *source, const tripoint_bub_ms &p, const explosion_data &ex )
 {
@@ -619,10 +638,11 @@ void flashbang( const tripoint_bub_ms &p, bool player_immune, const int radius )
         if( dist <= radius )
         {
             if( !guy.has_flag( json_flag_IMMUNE_HEARING_DAMAGE ) &&
-                !guy.is_wearing( itype_rm13_armor_on ) ) {
+                !guy.worn_with_flag( flag_PARTIAL_DEAF ) &&
+                !guy.worn_with_flag( flag_DEAF ) ) {
                 guy.add_effect( effect_deaf, time_duration::from_turns( radius * 5 - dist * 4 ) );
             }
-            if( here.sees( guy.pos_bub(), p, radius ) ) {
+            if( here.sees( guy.pos_bub(), p, radius, true, los_trace::physical ) ) {
                 int flash_mod = 0;
                 int dur_mod = 1;
                 if( guy.has_trait( trait_PER_SLIME ) ) {
@@ -631,8 +651,7 @@ void flashbang( const tripoint_bub_ms &p, bool player_immune, const int radius )
                     }
                 } else if( guy.has_trait( trait_PER_SLIME_OK ) ) {
                     flash_mod = radius; // Just retract those and extrude fresh eyes
-                } else if( guy.has_flag( json_flag_GLARE_RESIST ) ||
-                           guy.is_wearing( itype_rm13_armor_on ) ) {
+                } else if( guy.has_flag( json_flag_GLARE_RESIST ) ) {
                     flash_mod = radius / 1.3f;
                 } else if( guy.has_flag( json_flag_HIGH_GLARE ) ) {
                     flash_mod /= 2;
@@ -670,7 +689,8 @@ void flashbang( const tripoint_bub_ms &p, bool player_immune, const int radius )
             if( dist <= radius / 2 ) {
                 critter.add_effect( effect_stunned, time_duration::from_turns( radius / 0.8f - dist ) );
             }
-            if( critter.has_flag( mon_flag_SEES ) && here.sees( critter.pos_bub(), p, radius ) ) {
+            if( critter.has_flag( mon_flag_SEES ) &&
+                here.sees( critter.pos_bub(), p, radius, true, los_trace::physical ) ) {
                 critter.add_effect( effect_blind, time_duration::from_turns( radius * 2.5f - dist ) );
             }
             if( critter.has_flag( mon_flag_HEARS ) ) {
@@ -850,19 +870,20 @@ void emp_blast( const tripoint_bub_ms &p )
                      weapon->tname() );
         }
 
-        for( item_location &it : player_character.all_items_loc() ) {
-            // Render any electronic stuff in player's possession non-functional
-            if( it->has_flag( flag_ELECTRONIC ) && !it->is_broken() &&
-                !player_character.has_flag( json_flag_EMP_IMMUNE ) ) {
-                add_msg( m_bad, _( "The EMP blast fries your %s!" ), it->tname() );
-                it->deactivate();
-                item &electronic_item = *it.get_item();
-                if( get_option<bool>( "GAME_EMP" ) ) {
-                    electronic_item.set_fault( fault_emp_reboot );
-                } else {
-                    electronic_item.set_random_fault_of_type( "shorted" );
+        if( !player_character.has_flag( json_flag_EMP_IMMUNE ) ) {
+            player_character.visit_carried( []( item_location it ) {
+                // Render any electronic stuff in player's possession non-functional
+                if( it->has_flag( flag_ELECTRONIC ) && !it->is_broken() ) {
+                    add_msg( m_bad, _( "The EMP blast fries your %s!" ), it->tname() );
+                    it->deactivate();
+                    if( get_option<bool>( "GAME_EMP" ) ) {
+                        it->set_fault( fault_emp_reboot );
+                    } else {
+                        it->set_random_fault_of_type( "shorted" );
+                    }
                 }
-            }
+                return VisitResponse::NEXT;
+            } );
         }
     }
 
@@ -876,9 +897,9 @@ void emp_blast( const tripoint_bub_ms &p )
             item_location loc = item_location( map_cursor( p ), &it );
 
             if( get_option<bool>( "GAME_EMP" ) ) {
-                it.set_fault( fault_emp_reboot, true, false );
+                it.set_fault( fault_emp_reboot, true, nullptr );
             } else {
-                it.set_random_fault_of_type( "shorted", true, false );
+                it.set_random_fault_of_type( "shorted", true, nullptr );
             }
             //map::make_active adds the item to the active item processing list, so that it can reboot without further interaction
             here.make_active( loc );
@@ -1012,10 +1033,10 @@ void process_explosions()
             m.spawn_monsters( true, true );
             g->load_npcs( &m );
             process_explosions_in_progress = false;
-            _make_explosion( &m, ex.source, m.get_bub( ex.pos ), ex.data );
+            _make_explosion( &m, ex.source.get(), m.get_bub( ex.pos ), ex.data );
             m.process_falling();
         } else {
-            _make_explosion( bubble_map, ex.source, bubble_map->get_bub( ex.pos ), ex.data );
+            _make_explosion( bubble_map, ex.source.get(), bubble_map->get_bub( ex.pos ), ex.data );
         }
     }
 }

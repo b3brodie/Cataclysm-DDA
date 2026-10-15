@@ -1344,10 +1344,10 @@ std::string widget::color_text_function_string( const avatar &ava, unsigned int 
             desc = display::weather_text_color( ava );
             break;
         case widget_var::wielding_text:
-            desc.first = ava.weapname();
+            desc.first = ava.weapname( true );
             break;
         case widget_var::wielding_simple_text:
-            desc.first = ava.weapname_simple();
+            desc.first = ava.weapname_simple( true );
             break;
         case widget_var::wielding_mode_text:
             desc.first = ava.weapname_mode();
@@ -1876,7 +1876,7 @@ std::string widget::layout( const avatar &ava, unsigned int max_width, int label
             // Total widget width w/o padding
             const int total_widget_width = std::accumulate( wgts.begin(), wgts.end(), 0,
             [child_width]( int sum, const widget_id & wid ) {
-                widget cur_child = wid.obj();
+                const widget &cur_child = wid.obj();
                 return sum + ( cur_child._style == "layout" &&
                                cur_child._width > 0 ? cur_child._width : child_width );
             } );

@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <cstddef>
 #include <map>
 #include <memory>
@@ -10,6 +11,7 @@
 #include "body_part_set.h"
 #include "bodypart.h"
 #include "calendar.h"
+#include "cata_scope_helpers.h"
 #include "cata_catch.h"
 #include "character.h"
 #include "character_attire.h"
@@ -44,19 +46,20 @@ static const damage_type_id damage_stab( "stab" );
 
 static const enchantment_id enchantment_ENCH_TEST_ALT_ARMS( "ENCH_TEST_ALT_ARMS" );
 
+static const itype_id itype_arm_splint( "arm_splint" );
 static const itype_id itype_attachable_ear_muffs( "attachable_ear_muffs" );
 static const itype_id itype_backpack( "backpack" );
 static const itype_id itype_ballistic_vest_esapi( "ballistic_vest_esapi" );
+static const itype_id itype_battery( "battery" );
 static const itype_id itype_bio_ethanol( "bio_ethanol" );
 static const itype_id itype_bio_nostril( "bio_nostril" );
 static const itype_id itype_bio_power_storage( "bio_power_storage" );
-static const itype_id itype_bio_purifier( "bio_purifier" );
 static const itype_id itype_candle( "candle" );
 static const itype_id itype_candle_wax( "candle_wax" );
 static const itype_id itype_dress_shirt( "dress_shirt" );
 static const itype_id itype_face_shield( "face_shield" );
 static const itype_id itype_hat_hard( "hat_hard" );
-static const itype_id itype_icecream( "icecream" );
+static const itype_id itype_heavy_battery_cell( "heavy_battery_cell" );
 static const itype_id itype_iodine( "iodine" );
 static const itype_id itype_match( "match" );
 static const itype_id itype_medium_battery_cell( "medium_battery_cell" );
@@ -77,6 +80,7 @@ static const itype_id itype_test_arrow_wood( "test_arrow_wood" );
 static const itype_id itype_test_backpack( "test_backpack" );
 static const itype_id itype_test_balloon( "test_balloon" );
 static const itype_id itype_test_battery_disposable( "test_battery_disposable" );
+static const itype_id itype_test_bio_purifier( "test_bio_purifier" );
 static const itype_id itype_test_bitter_almond( "test_bitter_almond" );
 static const itype_id itype_test_brew_wine( "test_brew_wine" );
 static const itype_id itype_test_briefcase( "test_briefcase" );
@@ -94,12 +98,16 @@ static const itype_id itype_test_gum( "test_gum" );
 static const itype_id itype_test_halligan( "test_halligan" );
 static const itype_id itype_test_hallu_nutmeg( "test_hallu_nutmeg" );
 static const itype_id itype_test_hazmat_suit( "test_hazmat_suit" );
+static const itype_id itype_test_item_info_repair_tool( "test_item_info_repair_tool" );
 static const itype_id itype_test_jack_small( "test_jack_small" );
 static const itype_id itype_test_jug_plastic( "test_jug_plastic" );
 static const itype_id itype_test_longshirt( "test_longshirt" );
 static const itype_id itype_test_matches( "test_matches" );
 static const itype_id itype_test_meower_armor( "test_meower_armor" );
+static const itype_id itype_test_multimag_gun_integral_ammo( "test_multimag_gun_integral_ammo" );
 static const itype_id itype_test_nuclear_carafe( "test_nuclear_carafe" );
+static const itype_id itype_test_nutrient_info_component1( "test_nutrient_info_component1" );
+static const itype_id itype_test_nutrient_info_item( "test_nutrient_info_item" );
 static const itype_id itype_test_pants_faux_fur( "test_pants_faux_fur" );
 static const itype_id itype_test_pine_nuts( "test_pine_nuts" );
 static const itype_id itype_test_pipe( "test_pipe" );
@@ -129,6 +137,7 @@ static const itype_id itype_zentai( "zentai" );
 static const material_id material_wool( "wool" );
 
 static const recipe_id recipe_pur_tablets( "pur_tablets" );
+static const recipe_id recipe_test_nutrient_info_item( "test_nutrient_info_item" );
 
 static const skill_id skill_survival( "survival" );
 
@@ -802,6 +811,22 @@ static void verify_item_coverage( const item &i, const std::map<bodypart_id, int
     }
 }
 
+static void verify_item_warmth_by_bodypart( const item &i )
+{
+    CAPTURE( i.typeId() );
+    std::vector<std::pair<bodypart_id, int>> warmth_by_bodypart;
+    i.get_warmth_by_bodypart( warmth_by_bodypart );
+    for( const bodypart_id &bp : bodyparts_to_check() ) {
+        CAPTURE( bp.id() );
+        const auto found = std::find_if( warmth_by_bodypart.begin(), warmth_by_bodypart.end(),
+        [&]( const auto & entry ) {
+            return entry.first == bp;
+        } );
+        const int warmth = found == warmth_by_bodypart.end() ? 0 : found->second;
+        CHECK( warmth == i.get_warmth( bp ) );
+    }
+}
+
 static void verify_item_encumbrance( const item &i, item::encumber_flags flags, int average,
                                      const std::map<bodypart_id, int> &expected )
 {
@@ -811,6 +836,17 @@ static void verify_item_encumbrance( const item &i, item::encumber_flags flags, 
         CAPTURE( bp.id() );
         REQUIRE( i.get_encumber( get_player_character(), bp, flags ) == expected.at( bp ) );
     }
+}
+
+TEST_CASE( "warmth_by_bodypart_matches_single_bodypart_queries", "[iteminfo][armor][warmth]" )
+{
+    item splint( itype_arm_splint );
+
+    REQUIRE( splint.set_side( side::LEFT ) );
+    verify_item_warmth_by_bodypart( splint );
+
+    REQUIRE( splint.set_side( side::RIGHT ) );
+    verify_item_warmth_by_bodypart( splint );
 }
 
 // Related JSON fields:
@@ -1076,6 +1112,7 @@ TEST_CASE( "armor_coverage_warmth_and_encumbrance", "[iteminfo][armor][coverage]
         };
         REQUIRE( faux_fur_suit.get_avg_coverage() == 75 );
         REQUIRE( faux_fur_suit.get_warmth() == 5 );
+        verify_item_warmth_by_bodypart( faux_fur_suit );
         CHECK( item_info_str( faux_fur_suit, cov_warm_suit )
                ==
                "--\n"
@@ -1161,6 +1198,7 @@ TEST_CASE( "armor_coverage_warmth_and_encumbrance", "[iteminfo][armor][coverage]
         std::vector<iteminfo_parts> cov_warm_super_tank = { iteminfo_parts::ARMOR_COVERAGE, iteminfo_parts::ARMOR_WARMTH };
         REQUIRE( super_tank_top.get_avg_coverage() == 100 );
         REQUIRE( super_tank_top.get_warmth() == 20 );
+        verify_item_warmth_by_bodypart( super_tank_top );
         CHECK( item_info_str( super_tank_top, cov_warm_super_tank )
                ==
                "--\n"
@@ -1234,8 +1272,8 @@ TEST_CASE( "armor_rigidity", "[iteminfo][armor][coverage]" )
 
     CHECK( item_info_str( super_tank_top, { iteminfo_parts::ARMOR_RIGIDITY } ) ==
            "--\n"
-           "<color_c_white>This armor is rigid</color>\n"
-           "<color_c_white>This armor is comfortable</color>\n" );
+           "<color_c_white>This armor is rigid</color>.\n"
+           "<color_c_white>This armor is comfortable</color>.\n" );
 }
 
 // Related JSON fields:
@@ -1314,6 +1352,7 @@ TEST_CASE( "helmet_with_pockets_stats", "[iteminfo][armor][protection]" )
         //warmth stats: 5 (hat's warmth) * 0.4 (hat's body part coverage)
         CHECK( hh.get_warmth( bp_head ) == 2 );
         CHECK( hh.get_warmth( bp_eyes ) == 0 );
+        verify_item_warmth_by_bodypart( hh );
     }
 
 
@@ -1328,6 +1367,7 @@ TEST_CASE( "helmet_with_pockets_stats", "[iteminfo][armor][protection]" )
         THEN( "warmth should not change" ) {
             CHECK( hh.get_warmth( bp_head ) == 2 );
             CHECK( hh.get_warmth( bp_eyes ) == 0 );
+            verify_item_warmth_by_bodypart( hh );
         }
         THEN( "breathbility should be 0" ) {
             CHECK( hh.breathability( bp_eyes ) == 0 );
@@ -1340,6 +1380,7 @@ TEST_CASE( "helmet_with_pockets_stats", "[iteminfo][armor][protection]" )
             CHECK( nape_protector.get_warmth( bp_head ) == 2 );
             //2 (base warmth) + 4 (nape's warmth) * 0.4 (nape's body part coverage)
             CHECK( hh.get_warmth( bp_head ) == 4 );
+            verify_item_warmth_by_bodypart( hh );
         }
         WHEN( "adding ear muffs to the helmet" ) {
             item ear_muffs( itype_attachable_ear_muffs );
@@ -1347,6 +1388,7 @@ TEST_CASE( "helmet_with_pockets_stats", "[iteminfo][armor][protection]" )
             THEN( "head's warmth should be increased even more" ) {
                 CHECK( ear_muffs.get_warmth( bp_head ) == 2 );
                 CHECK( hh.get_warmth( bp_head ) == 6 );
+                verify_item_warmth_by_bodypart( hh );
             }
         }
     }
@@ -1564,9 +1606,9 @@ TEST_CASE( "armor_protection", "[iteminfo][armor][protection]" )
         // Kevlar cat harness, for reasons
         // material:layered_kevlar, thickness:2
         // 1.5/2/5 bash/cut/bullet x 2 thickness
-        // 5/3/10 acid/fire/env
+        // 5/40/10 acid/fire/env
         item meower_armor( itype_test_meower_armor );
-        expected_armor_values( meower_armor, 3, 4, 3.2, 10, 5, 3, 10 );
+        expected_armor_values( meower_armor, 3, 4, 3.2, 10, 5, 40, 10 );
 
         const std::string info = item_info_str( meower_armor, protection );
         const std::string header_str = "<color_c_white>Protection</color>:\n";
@@ -1574,7 +1616,7 @@ TEST_CASE( "armor_protection", "[iteminfo][armor][protection]" )
         const std::string cut_str = "  Cut: <color_c_yellow>4.00</color>\n";
         const std::string ballistic_str = "  Ballistic: <color_c_yellow>10.00</color>\n";
         const std::string acid_str = "  Acid: <color_c_yellow>5.00</color>\n";
-        const std::string fire_str = "  Fire: <color_c_yellow>3.00</color>\n";
+        const std::string fire_str = "  Fire: <color_c_yellow>40.00</color>\n";
         const std::string env_str = "  Environmental: <color_c_yellow>10</color>\n";
         size_t pos = 0;
         test_string( info, header_str, pos );
@@ -1938,6 +1980,32 @@ TEST_CASE( "gun_armor_piercing_dispersion_and_other_stats", "[iteminfo][gun][mis
     //CHECK( item_info_str( glock, gun_casings ).empty() );
 }
 
+// Battery-only-loaded multimag: gun_info must render without crash, report
+// the projectile pocket's true capacity, and surface the per-shot draw.
+TEST_CASE( "multimag_gun_info_with_battery_only_loaded", "[iteminfo][gun][multimag]" )
+{
+    clear_avatar();
+
+    item gun( itype_test_multimag_gun_integral_ammo );
+    REQUIRE( gun.uses_firing_requirements() );
+
+    item battery( itype_heavy_battery_cell );
+    battery.ammo_set( itype_battery, 100 );
+    REQUIRE( gun.put_in( battery, pocket_type::MAGAZINE_WELL ).success() );
+
+    const std::vector<iteminfo_parts> capacity_parts = { iteminfo_parts::GUN_CAPACITY };
+    const std::string capacity = item_info_str( gun, capacity_parts );
+    CAPTURE( capacity );
+    CHECK( capacity.find( "Capacity" ) != std::string::npos );
+    CHECK( capacity.find( ">1</color> round of " ) != std::string::npos );
+    CHECK( capacity.find( ">0</color> round" ) == std::string::npos );
+
+    const std::vector<iteminfo_parts> per_shot_parts = { iteminfo_parts::AMMO_TO_FIRE };
+    const std::string per_shot = item_info_str( gun, per_shot_parts );
+    CAPTURE( per_shot );
+    CHECK( per_shot.find( "Per-shot consumption" ) != std::string::npos );
+}
+
 // Related JSON fields:
 // "sight_dispersion"
 // "aim_speed"
@@ -2086,36 +2154,31 @@ TEST_CASE( "nutrients_in_food", "[iteminfo][food]" )
 {
     clear_avatar();
 
-    item ice_cream( itype_icecream );
+    item test_item( itype_test_nutrient_info_item );
 
     SECTION( "fixed nutrient values in regular item" ) {
-        CHECK( item_info_str( ice_cream, { iteminfo_parts::FOOD_NUTRITION, iteminfo_parts::FOOD_QUENCH } )
+        CHECK( item_info_str( test_item, { iteminfo_parts::FOOD_NUTRITION } )
                ==
                "--\n"
-               "<color_c_white>Calories (kcal)</color>: <color_c_yellow>325</color>"
-               "  Quench: <color_c_yellow>0</color>\n" );
-        // Values end up rounded slightly
-        CHECK( item_info_str( ice_cream, { iteminfo_parts::FOOD_VITAMINS } ) ==
+               "<color_c_white>Calories (kcal)</color>: <color_c_yellow>100</color>" );
+        CHECK( item_info_str( test_item, { iteminfo_parts::FOOD_VITAMINS } ) ==
                "--\n"
-               "Vitamins (RDA): 83 mg Calcium (8%)\n" );
+               "Vitamins (RDA): 1 g Calcium (100%)\n" );
     }
 
     SECTION( "nutrient ranges for recipe exemplars", "[iteminfo]" ) {
-        ice_cream.set_var( "recipe_exemplar", "icecream" );
+        test_item.set_var( "recipe_exemplar", "test_nutrient_info_item" );
 
-        CHECK( item_info_str( ice_cream, { iteminfo_parts::FOOD_NUTRITION, iteminfo_parts::FOOD_QUENCH } )
+        CHECK( item_info_str( test_item, { iteminfo_parts::FOOD_NUTRITION } )
                ==
                "--\n"
                "Nutrition will <color_cyan>vary with chosen ingredients</color>.\n"
                "<color_c_white>Calories (kcal)</color>:"
-               " <color_c_yellow>53</color>-<color_c_yellow>465</color>"
-               "  Quench: <color_c_yellow>0</color>\n" );
-        // Values end up rounded slightly
-        CHECK( item_info_str( ice_cream, { iteminfo_parts::FOOD_VITAMINS } ) ==
+               " <color_c_yellow>100</color>-<color_c_yellow>200</color>" );
+        CHECK( item_info_str( test_item, { iteminfo_parts::FOOD_VITAMINS } ) ==
                "--\n"
                "Nutrition will <color_cyan>vary with chosen ingredients</color>.\n"
-               "Vitamins (RDA): 63-323 mg Calcium (6-32%), 0-20 mg Iron (0-109%),"
-               " and 0-45 mg Vitamin C (0-50%)\n" );
+               "Vitamins (RDA): 1-2 g Calcium (100-200%)\n" );
     }
 }
 
@@ -2628,12 +2691,12 @@ TEST_CASE( "bionic_info", "[iteminfo][bionic]" )
     item burner( itype_bio_ethanol );
     item power( itype_bio_power_storage );
     item nostril( itype_bio_nostril );
-    item purifier( itype_bio_purifier );
+    item test_purifier( itype_test_bio_purifier );
 
     REQUIRE( burner.is_bionic() );
     REQUIRE( power.is_bionic() );
     REQUIRE( nostril.is_bionic() );
-    REQUIRE( purifier.is_bionic() );
+    REQUIRE( test_purifier.is_bionic() );
 
     CHECK( item_info_str( burner, {} ) ==
            "--\n"
@@ -2661,7 +2724,7 @@ TEST_CASE( "bionic_info", "[iteminfo][bionic]" )
            "<color_c_white>Encumbrance</color>: "
            "mouth <color_c_yellow>10</color>" );
 
-    CHECK( item_info_str( purifier, {} ) ==
+    CHECK( item_info_str( test_purifier, {} ) ==
            "--\n"
            "<color_c_white>Environmental Protection</color>: "
            "mouth <color_c_yellow>15</color>" );
@@ -2673,16 +2736,16 @@ TEST_CASE( "repairable_and_with_what_tools", "[iteminfo][repair]" )
 {
     clear_avatar();
 
-    item halligan( itype_test_halligan );
+    item test_repair_item( itype_test_item_info_repair_tool );
     item hazmat( itype_test_hazmat_suit );
     item rock( itype_test_rock );
 
     std::vector<iteminfo_parts> repaired = { iteminfo_parts::DESCRIPTION_REPAIREDWITH };
 
-    CHECK( item_info_str( halligan, repaired ) ==
+    CHECK( item_info_str( test_repair_item, repaired ) ==
            "--\n"
-           "<color_c_white>Repair</color> using integrated welder, arc welder, makeshift arc welder, or high-temperature welding kit.\n"
-           "<color_c_white>With</color> <color_c_cyan>chunk of steel</color>.\n"
+           "<color_c_white>Repair</color> using TEST item info repair tool.\n"
+           "<color_c_white>With</color> <color_c_cyan>TEST repair item</color>.\n"
          );
 
     // FIXME: Use an item that can only be repaired by test tools
@@ -2712,14 +2775,17 @@ TEST_CASE( "disassembly_time_and_yield", "[iteminfo][disassembly]" )
            "<color_c_white>Disassembly</color> takes about 20 minutes, requires 1 tool"
            " with <color_c_cyan>cutting of 2</color> or more and 1 tool with"
            " <color_c_cyan>screw driving of 1</color> or more and <color_c_white>might"
-           " yield</color>: 2 electronic scraps, 1 copper, 1 scrap metal, and 5 copper"
-           " wire.\n" );
+           // i do not understand why clang yells two spaces are needed for `and 59in. copper`
+           // but i cannot figure how to fix it properly
+           //NOLINTNEXTLINE(cata-text-style)
+           " yield</color>: 2 electronic scraps, 1 copper, 1 scrap metal, and 59in. copper"
+           " wires.\n" );
 
     CHECK( item_info_str( metal, disassemble ) ==
            "--\n"
            "<color_c_white>Disassembly</color> takes about 2 minutes, requires 1 tool"
            " with <color_c_cyan>metal sawing of 2</color> or more and <color_c_white>might"
-           " yield</color>: 24 TEST small metal sheet.\n" );
+           " yield</color>: 24 TEST small metal sheets.\n" );
 }
 
 // Related JSON fields:
@@ -2783,6 +2849,21 @@ TEST_CASE( "show_available_recipes_with_item_as_an_ingredient", "[iteminfo][reci
 
     // FIXME: Factor out of final_info
     std::vector<iteminfo_parts> crafting = { iteminfo_parts::DESCRIPTION_APPLICABLE_RECIPES };
+
+    GIVEN( "character carries the only component of a known recipe" ) {
+        player_character.worn.wear_item( player_character, item( itype_backpack ), false, false );
+        player_character.learn_recipe( &recipe_test_nutrient_info_item.obj() );
+        item_location component = player_character.i_add( item( itype_test_nutrient_info_component1 ) );
+        player_character.invalidate_crafting_inventory();
+        // can_craft_recipe answers are cached per turn
+        restore_on_out_of_scope restore_turn( calendar::turn );
+        calendar::turn += 7_days;
+
+        THEN( "recipe listed as craftable" ) {
+            CHECK( item_info_str( *component, crafting ) ==
+                   "--\nYou could use it to craft: nutrient test item\n" );
+        }
+    }
 
     GIVEN( "character has a potassium iodide tablet and no skill" ) {
         player_character.worn.wear_item( player_character, item( itype_backpack ), false, false );

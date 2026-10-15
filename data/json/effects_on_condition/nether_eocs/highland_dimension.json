@@ -12,13 +12,13 @@
       {
         "u_travel_to_dimension": "highlands",
         "npc_travel_radius": 0,
-        "region_type": "highlands",
         "npc_travel_filter": "none",
         "fail_message": "You experience brief vertigo, but nothing dangerous seems to happen.",
         "success_message": "Your surroundings warp and fold before reforming into a strange landscape."
       },
       { "u_location_variable": { "u_val": "safe_highland" }, "target_params": { "om_terrain": "highlands", "z": 0 } },
-      { "u_teleport": { "u_val": "safe_highland" } }
+      { "u_teleport": { "u_val": "safe_highland" } },
+      { "run_eocs": "EOC_DIMENSION_TELE_SICKNESS" }
     ]
   },
   {
@@ -38,8 +38,14 @@
           "and": [
             { "u_is_on_terrain": "t_highland_bronze_floor" },
             { "math": [ "gate_open != 1" ] },
-            { "math": [ "u_artifact_resonance() >= 4500" ] },
-            { "u_has_worn_with_flag": "IMPERIAL_ROAD_KEY" }
+            {
+              "or": [
+                { "u_has_flag": "IMPERIAL_ROAD_TRAVELER" },
+                {
+                  "and": [ { "math": [ "u_artifact_resonance() >= 4500" ] }, { "u_has_worn_with_flag": "IMPERIAL_ROAD_KEY" } ]
+                }
+              ]
+            }
           ]
         },
         "then": [ { "mapgen_update": "conquerors_road_open" }, { "math": [ "gate_open = 1" ] } ]
@@ -55,7 +61,14 @@
     "type": "effect_on_condition",
     "id": "EOC_IMPERIAL_ROAD_LOST",
     "global": true,
-    "condition": { "and": [ { "math": [ "u_artifact_resonance() >= 4500" ] }, { "u_has_worn_with_flag": "IMPERIAL_ROAD_KEY" } ] },
+    "condition": {
+      "or": [
+        { "u_has_flag": "IMPERIAL_ROAD_TRAVELER" },
+        {
+          "and": [ { "math": [ "u_artifact_resonance() >= 4500" ] }, { "u_has_worn_with_flag": "IMPERIAL_ROAD_KEY" } ]
+        }
+      ]
+    },
     "effect": [
       {
         "if": { "not": { "current_dimension": "imperial_road" } },
@@ -63,7 +76,6 @@
           {
             "u_travel_to_dimension": "imperial_road",
             "npc_travel_radius": 0,
-            "region_type": "highland_imperial_road",
             "npc_travel_filter": "none",
             "fail_message": "You feel like the weight of the air around you has shifted, but nothing else happens.",
             "success_message": ""

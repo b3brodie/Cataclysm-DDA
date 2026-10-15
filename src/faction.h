@@ -153,6 +153,9 @@ class faction_template
         translation desc;
         int size; // How big is our sphere of influence?
         int power; // General measure of our power
+        // Three steal states: Always, Never, Ask
+        // Always = true, Never = false, Ask = std::nullopt
+        std::optional<bool> steal_persist;
     protected:
         // Sorted list of nutrients and when they expire
         // The time_point == 0 mod 1_days, and calendar::turn_zero is non-perishable food
@@ -187,6 +190,8 @@ class faction : public faction_template
 
         std::string food_supply_text() const;
         nc_color food_supply_color() const;
+
+        bool guaranteed_hostile() const;
 
         std::pair<nc_color, std::string> vitamin_stores( vitamin_type vit );
 

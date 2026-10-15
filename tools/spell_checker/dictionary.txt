@@ -187,6 +187,7 @@ An
 Anáhuac
 ananassa
 Anatolia
+Anaximander
 anchisaurus
 Ancien
 Andean
@@ -335,6 +336,7 @@ armguards
 Armitage
 armormaking
 armorsmithing
+Armus
 aromantic
 arowana
 arowanas
@@ -383,6 +385,7 @@ assistive
 asswagon
 asswipe
 Asterios
+asterix
 astrodon
 astrodons
 astrolaspis
@@ -1229,6 +1232,8 @@ Chilmark
 Chinese
 Ching
 chirality
+chirurgeon
+chirurgeons
 chirurgic
 chitinworking
 chk
@@ -1481,6 +1486,8 @@ CXIV
 cyber
 cybercop
 cyberdog
+Cyberframe
+Cyberframes
 Cyberiad
 cyberjunkie
 cybernetically
@@ -1627,7 +1634,6 @@ Descartes
 descript
 desilo
 Desmodontinae
-dessicant
 destreza
 Det
 detune
@@ -2551,6 +2557,7 @@ goedendag
 goedendags
 Goethe
 Goldberg
+goldbrew
 Goldstein
 Golemancer
 Golemancy
@@ -3022,6 +3029,7 @@ hosomaki
 Hoss
 hotcut
 hotcuts
+hotcutting
 hotkey
 hotkeys
 hotties
@@ -3129,6 +3137,7 @@ ichthys
 ick
 iconical
 ICs
+idefix
 idolators
 IDW
 IDWs
@@ -3721,10 +3730,12 @@ Landborn
 landline
 Landough
 landrover
+Landru
 landshark
 Landstreicher
 Landwenn
 Lanesborough
+langets
 Lankan
 Lann
 Lanwenn
@@ -3929,6 +3940,7 @@ Lorence
 Lorentz
 Los
 Losouarn
+lothar
 Lottie
 Lou
 Louan
@@ -4866,6 +4878,7 @@ nonsedated
 nonvalid
 nonverbally
 noob
+Noonien
 noosphere
 nopal
 nopales
@@ -4916,6 +4929,7 @@ numbnut
 numpad
 nums
 Nunez
+nurdle
 Nuz
 NV
 NVG
@@ -4935,6 +4949,7 @@ Oakley
 Oan
 Oanez
 Oates
+obelix
 Obrez
 obscura
 Oceania
@@ -5203,6 +5218,7 @@ Pearlman
 pecorino
 pedipalps
 Pedro
+peening
 pekmez
 Pelleter
 pelmeni
@@ -5229,8 +5245,10 @@ Peran
 Percy
 Perenez
 perforators
+periapt
 periapta
 periaptas
+periapts
 Perioù
 peripheric
 Perlezennn
@@ -5328,6 +5346,7 @@ PKers
 Plainfield
 Plainville
 planetside
+planishing
 plano
 plantkin
 plasticky
@@ -5671,6 +5690,8 @@ renfields
 Reno
 repairwork
 replow
+Repo
+Repolymerization
 Represa
 reprime
 reptoid
@@ -6331,6 +6352,8 @@ smokable
 smoothbores
 smoots
 SMR
+smurf
+smurfs
 Smythe
 snakelet
 snakelets
@@ -6941,6 +6964,7 @@ Timorese
 Tinamidae
 Tindalos
 tink
+tintin
 Tipperary
 tiramisù
 tireplate
@@ -6995,6 +7019,7 @@ torvosaurus
 totipotent
 Toto
 töttchen
+touchmark
 Toudig
 tourmalines
 Touz
@@ -7093,6 +7118,7 @@ TsKBEM
 TsNIITochMash
 Tsu
 tsuba
+tsuka
 tsumi
 tsundere
 tsurugi
@@ -7369,7 +7395,6 @@ vermontsteel
 Verne
 versa
 Versailles
-vestigal
 vewwy
 VI
 viagra

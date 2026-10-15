@@ -14,9 +14,9 @@
 #include "cata_utility.h"
 #include "character.h"
 #include "coordinates.h"
+#include "craft_command.h"
 #include "debug.h"
 #include "flexbuffer_json.h"
-#include "inventory.h"
 #include "item.h"
 #include "item_location.h"
 #include "itype.h"
@@ -24,6 +24,7 @@
 #include "json_loader.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "map_helpers_tests.h"
 #include "npc.h"
 #include "player_activity.h"
 #include "player_helpers.h"
@@ -33,10 +34,10 @@
 #include "recipe.h"
 #include "requirements.h"
 #include "ret_val.h"
+#include "string_formatter.h"
+#include "temp_crafting_inventory.h"
 #include "translation.h"
 #include "type_id.h"
-
-class read_only_visitable;
 
 static const activity_id ACT_CRAFT( "ACT_CRAFT" );
 
@@ -45,6 +46,7 @@ static const itype_id itype_battery( "battery" );
 static const itype_id itype_cudgel( "cudgel" );
 static const itype_id itype_heavy_battery_cell( "heavy_battery_cell" );
 static const itype_id itype_knife_hunting( "knife_hunting" );
+static const itype_id itype_soldering_iron_portable( "soldering_iron_portable" );
 static const itype_id itype_test_charged_fast_cutter( "test_charged_fast_cutter" );
 static const itype_id itype_test_fast_cutter( "test_fast_cutter" );
 static const itype_id itype_test_slow_cutter( "test_slow_cutter" );
@@ -57,7 +59,9 @@ static const quality_id qual_BUTCHER( "BUTCHER" );
 static const quality_id qual_CUT( "CUT" );
 
 static const recipe_id recipe_cudgel_simple( "cudgel_simple" );
+static const recipe_id recipe_cudgel_test_root_charged( "cudgel_test_root_charged" );
 static const recipe_id recipe_cudgel_test_steps_basic( "cudgel_test_steps_basic" );
+static const recipe_id recipe_cudgel_test_steps_charged( "cudgel_test_steps_charged" );
 static const recipe_id recipe_cudgel_test_steps_required_prof(
     "cudgel_test_steps_required_prof" );
 static const recipe_id recipe_cudgel_test_steps_shared_prof(
@@ -129,6 +133,81 @@ TEST_CASE( "step_recipe_tools_merged", "[recipe][steps]" )
         }
     }
     CHECK( has_cut );
+}
+
+static bool reqs_have_tool( const requirement_data &reqs, const itype_id &tool )
+{
+    for( const std::vector<tool_comp> &group : reqs.get_tools() ) {
+        for( const tool_comp &t : group ) {
+            if( t.type == tool ) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+TEST_CASE( "step_recipe_root_requirements_separate_from_step_tools", "[recipe][steps]" )
+{
+    GIVEN( "a step recipe with a charged tool only on a step" ) {
+        const recipe &r = recipe_cudgel_test_steps_charged.obj();
+        THEN( "the root requirements hold no tools" ) {
+            CHECK_FALSE( reqs_have_tool( r.root_requirements(), itype_soldering_iron_portable ) );
+        }
+        THEN( "the owning step still lists the charged tool" ) {
+            REQUIRE( r.steps().size() == 3 );
+            CHECK( reqs_have_tool( r.steps()[1].requirements, itype_soldering_iron_portable ) );
+        }
+    }
+
+    GIVEN( "a step recipe with a charged tool at the recipe root" ) {
+        const recipe &r = recipe_cudgel_test_root_charged.obj();
+        THEN( "the root requirements hold the charged tool" ) {
+            CHECK( reqs_have_tool( r.root_requirements(), itype_soldering_iron_portable ) );
+        }
+        THEN( "no step lists the charged tool" ) {
+            for( const recipe_step &s : r.steps() ) {
+                CHECK_FALSE( reqs_have_tool( s.requirements, itype_soldering_iron_portable ) );
+            }
+        }
+    }
+
+    // Root charged tools are metered across all timed steps, attended or
+    // unattended, so finalize accepts them regardless of which tiers the recipe
+    // uses.  Inline finalize keeps these probe recipes out of loaded TEST_DATA.
+    const auto finalize_msg = []( const std::string & steps_json ) -> std::string {
+        recipe r;
+        JsonObject jo = json_loader::from_string( string_format(
+                    R"({ "type": "recipe", "result": "cudgel", "id_suffix": "test_charged_root",
+                                "category": "CC_WEAPON", "subcategory": "CSC_WEAPON_BASHING",
+                                "skill_used": "fabrication", "difficulty": 1,
+                                "using": [ [ "soldering_standard", 1 ] ], "components": [[ [ "2x4", 1 ] ]],
+                                "steps": [ %s ] })", steps_json ) );
+        jo.allow_omitted_members();
+        r.load( jo, "dda" );
+        return capture_debugmsg_during( [&]()
+        {
+            r.finalize();
+        } );
+    };
+
+    GIVEN( "a charged root tool and only unattended steps" ) {
+        const std::string msg = finalize_msg(
+                                    R"({ "name": "Cure", "time": "10 m", "attention": "unattended", "activity_level": "NO_EXERCISE" },)"
+                                    R"({ "name": "Dry", "time": "10 m", "attention": "unattended", "activity_level": "NO_EXERCISE" })" );
+        THEN( "finalize accepts it" ) {
+            CHECK( msg.empty() );
+        }
+    }
+
+    GIVEN( "a charged root tool and an active step" ) {
+        const std::string msg = finalize_msg(
+                                    R"({ "name": "Shape", "time": "10 m", "activity_level": "MODERATE_EXERCISE" },)"
+                                    R"({ "name": "Dry", "time": "10 m", "attention": "unattended", "activity_level": "NO_EXERCISE" })" );
+        THEN( "finalize accepts it" ) {
+            CHECK( msg.empty() );
+        }
+    }
 }
 
 TEST_CASE( "step_recipe_deduped_requirements_craftable", "[recipe][steps]" )
@@ -1829,7 +1908,7 @@ TEST_CASE( "best_speed_single_item", "[recipe][steps][tool_speed]" )
     guy.setpos( get_map(), origin );
 
     place_tool( itype_test_fast_cutter );
-    const read_only_visitable &inv = guy.crafting_inventory();
+    const temp_crafting_inventory &inv = guy.crafting_inventory();
 
     CHECK( best_quality_speed_modifier( inv, guy, qual_CUT, 1 ) == Approx( 0.5f ) );
 }
@@ -1845,7 +1924,7 @@ TEST_CASE( "best_speed_picks_fastest", "[recipe][steps][tool_speed]" )
 
     place_tool( itype_test_fast_cutter );
     place_tool( itype_test_slow_cutter );
-    const read_only_visitable &inv = guy.crafting_inventory();
+    const temp_crafting_inventory &inv = guy.crafting_inventory();
 
     CHECK( best_quality_speed_modifier( inv, guy, qual_CUT, 1 ) == Approx( 0.5f ) );
 }
@@ -1860,7 +1939,7 @@ TEST_CASE( "best_speed_no_modifier_returns_one", "[recipe][steps][tool_speed]" )
     guy.setpos( get_map(), origin );
 
     place_tool( itype_knife_hunting );
-    const read_only_visitable &inv = guy.crafting_inventory();
+    const temp_crafting_inventory &inv = guy.crafting_inventory();
 
     CHECK( best_quality_speed_modifier( inv, guy, qual_CUT, 1 ) == Approx( 1.0f ) );
 }
@@ -1875,7 +1954,7 @@ TEST_CASE( "best_speed_insufficient_level_ignored", "[recipe][steps][tool_speed]
     guy.setpos( get_map(), origin );
 
     place_tool( itype_test_fast_cutter );
-    const read_only_visitable &inv = guy.crafting_inventory();
+    const temp_crafting_inventory &inv = guy.crafting_inventory();
 
     // Level 1 should work
     CHECK( best_quality_speed_modifier( inv, guy, qual_CUT, 1 ) == Approx( 0.5f ) );
@@ -1893,7 +1972,7 @@ TEST_CASE( "best_speed_slow_tool_returns_above_one", "[recipe][steps][tool_speed
     guy.setpos( get_map(), origin );
 
     place_tool( itype_test_slow_cutter );
-    const read_only_visitable &inv = guy.crafting_inventory();
+    const temp_crafting_inventory &inv = guy.crafting_inventory();
 
     CHECK( best_quality_speed_modifier( inv, guy, qual_CUT, 1 ) == Approx( 1.5f ) );
 }
@@ -1918,7 +1997,7 @@ TEST_CASE( "best_speed_charged_quality_when_charged", "[recipe][steps][tool_spee
 
     here.add_item( origin, tool );
     guy.invalidate_crafting_inventory();
-    const read_only_visitable &inv = guy.crafting_inventory();
+    const temp_crafting_inventory &inv = guy.crafting_inventory();
 
     // Level 1 query -- charged quality at level 2 qualifies, speed 0.3
     CHECK( best_quality_speed_modifier( inv, guy, qual_CUT, 1 ) == Approx( 0.3f ) );
@@ -2221,4 +2300,60 @@ TEST_CASE( "tool_speed_negative_rejected", "[recipe][steps][tool_speed]" )
         "symbol": "x", "color": "white",
         "qualities": [ { "id": "CUT", "level": 1, "speed": -1 } ]
     })" );
+}
+
+TEST_CASE( "step_recipe_root_tool_distributed_by_step_budget", "[recipe][steps][crafting]" )
+{
+    // Root tool charges split across active steps by move budget, not raw time,
+    // so a per-step proficiency malus shifts more of the root tool onto the
+    // slower step even when the steps share the same nominal duration.
+    clear_avatar();
+    clear_map();
+    avatar &u = get_avatar();
+    u.set_skill_level( skill_fabrication, 10 );
+    // Has the Finish proficiency but not the Shape one, so only Shape is slowed.
+    u.add_proficiency( proficiency_prof_test_step_b, true );
+    u.i_add( tool_with_ammo( itype_soldering_iron_portable, 500 ) );
+    u.i_add( item( itype_2x4 ) );
+    u.invalidate_crafting_inventory();
+
+    recipe r;
+    JsonObject jo = json_loader::from_string( R"({
+        "type": "recipe", "result": "cudgel", "id_suffix": "test_root_charged_profs",
+        "category": "CC_WEAPON", "subcategory": "CSC_WEAPON_BASHING",
+        "skill_used": "fabrication", "difficulty": 1,
+        "using": [ [ "soldering_standard", 10 ] ], "components": [[ [ "2x4", 1 ] ]],
+        "steps": [
+            { "name": "Shape", "time": "10 m", "activity_level": "MODERATE_EXERCISE",
+              "proficiencies": [ { "proficiency": "prof_test_step_a" } ] },
+            { "name": "Finish", "time": "10 m", "activity_level": "NO_EXERCISE",
+              "proficiencies": [ { "proficiency": "prof_test_step_b" } ] }
+        ]
+    })" );
+    jo.allow_omitted_members();
+    r.load( jo, "dda" );
+    r.finalize();
+
+    temp_crafting_inventory map_inv;
+    bool cancelled = false;
+    const std::vector<std::vector<step_tool_alloc>> allocs =
+                select_step_tool_allocs( u, r, 1, map_inv, cancelled );
+    REQUIRE_FALSE( cancelled );
+    REQUIRE( allocs.size() == 2 );
+
+    const auto root_units = [&]( size_t step ) -> int {
+        for( const step_tool_alloc &a : allocs[step] )
+        {
+            if( a.root_derived ) {
+                return a.step_count_units;
+            }
+        }
+        return -1;
+    };
+    const int shape = root_units( 0 );
+    const int finish = root_units( 1 );
+    REQUIRE( shape > 0 );
+    REQUIRE( finish > 0 );
+    // Raw time alone would split the root tool evenly; the Shape malus tips it.
+    CHECK( shape > finish );
 }

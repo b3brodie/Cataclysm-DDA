@@ -17,7 +17,6 @@
 #include "dialogue.h"
 #include "dialogue_helpers.h"
 #include "flag.h"
-#include "inventory.h"
 #include "item.h"
 #include "item_location.h"
 #include "magic.h"
@@ -33,6 +32,7 @@
 #include "ret_val.h"
 #include "rng.h"
 #include "talker.h"
+#include "temp_crafting_inventory.h"
 
 static const bionic_id bio_hydraulics( "bio_hydraulics" );
 
@@ -475,12 +475,13 @@ void npc_attack_gun::use( npc &source, const tripoint_bub_ms &location ) const
         return;
     }
 
-    const int dist = rl_dist( source.pos_bub(), location );
+    const Target_attributes target( source.pos_bub(), location );
+    const aim_mods_cache aim_cache = source.gen_aim_mods_cache( gun );
 
     // Only aim if we aren't in risk of being hit
     // TODO: Get distance to closest enemy
-    if( dist > 1 && source.aim_per_move( gun, source.recoil ) > 0 &&
-        source.confident_gun_mode_range( gunmode, source.recoil ) < dist ) {
+    if( target.range > 1 && source.aim_per_move( gun, source.recoil, target, aim_cache ) > 0 &&
+        source.confident_gun_mode_range( gunmode, source.recoil ) < target.range ) {
         add_msg_debug( debugmode::debug_filter::DF_NPC, "%s is aiming", source.disp_name() );
         source.aim( Target_attributes( source.pos_bub(), location ) );
     } else {
@@ -755,8 +756,9 @@ npc_attack_rating npc_attack_throw::evaluate(
         // please don't throw your pants...
         return effectiveness;
     }
-    const inventory &available_weapons = source.crafting_inventory( tripoint_bub_ms::zero, -1 );
-    if( &thrown_item == source.evaluate_best_weapon() &&
+    const temp_crafting_inventory &available_weapons = source.crafting_inventory( tripoint_bub_ms::zero,
+            -1 );
+    if( &thrown_item == best_weapon &&
         available_weapons.amount_of( thrown_item.typeId() ) <= 1 &&
         available_weapons.charges_of( thrown_item.typeId() ) <= 1 ) {
         // Don't throw if it's the best individual killy-thing we've got
@@ -851,7 +853,7 @@ npc_attack_rating npc_attack_throw::evaluate_tripoint(
         return npc_attack_rating( std::nullopt, location );
     }
 
-    const float throw_mult = throw_cost( source, single_item ) * source.speed_rating() / 100.0f;
+    const float throw_mult = throw_cost( source, single_item ) * source_speed_rating / 100.0f;
     const int damage = source.thrown_item_total_damage_raw( single_item );
     float dps = damage / throw_mult;
     const int distance_to_me = rl_dist( location, source.pos_bub() );

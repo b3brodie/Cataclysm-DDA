@@ -37,7 +37,6 @@
 #include "flag.h"
 #include "game.h"
 #include "game_constants.h"
-#include "inventory.h"
 #include "item.h"
 #include "item_location.h"
 #include "lightmap.h"
@@ -60,6 +59,7 @@
 #include "stomach.h"
 #include "talker.h"
 #include "teleport.h"
+#include "temp_crafting_inventory.h"
 #include "text_snippets.h"
 #include "translation.h"
 #include "translations.h"
@@ -97,6 +97,7 @@ static const efftype_id effect_mending( "mending" );
 static const efftype_id effect_narcosis( "narcosis" );
 static const efftype_id effect_nausea( "nausea" );
 static const efftype_id effect_onfire( "onfire" );
+static const efftype_id effect_overburdened( "overburdened" );
 static const efftype_id effect_shakes( "shakes" );
 static const efftype_id effect_sleep( "sleep" );
 static const efftype_id effect_sunscreen( "sunscreen" );
@@ -326,7 +327,8 @@ void suffer::while_underwater( Character &you )
     if( !you.has_flag( json_flag_GILLS ) ) {
         you.oxygen--;
     }
-    if( you.oxygen < 12 && you.worn_with_flag( flag_REBREATHER ) ) {
+    if( you.oxygen < 12 && ( you.worn_with_flag( flag_REBREATHER ) ||
+                             ( you.worn_with_flag( flag_SCBA_ON ) && you.has_item_with_flag( flag_SCBA_TANK_ON ) ) ) ) {
         you.oxygen += 12;
     }
     if( you.oxygen <= 5 ) {
@@ -455,11 +457,18 @@ void suffer::from_addictions( Character &you )
 
 void suffer::while_awake( Character &you, const int current_stim )
 {
+    // The purpose of reapplying the effects for 2 turns is to prevent the application message from appearing every turn.
     if( you.weight_carried() > you.max_pickup_capacity() ) {
         if( you.has_effect( effect_downed ) ) {
             you.add_effect( effect_downed, 1_turns, false, 0, true );
         } else {
             you.add_effect( effect_downed, 2_turns, false, 0, true );
+        }
+    } else if( you.weight_carried() > you.weight_capacity() ) {
+        if( you.has_effect( effect_overburdened ) ) {
+            you.add_effect( effect_overburdened, 1_turns, false, 0, true );
+        } else {
+            you.add_effect( effect_overburdened, 2_turns, false, 0, true );
         }
     }
 
@@ -561,7 +570,7 @@ void suffer::from_chemimbalance( Character &you )
         you.mod_thirst( 5 * rng( 1, 3 ) );
     }
     if( one_turn_in( 6_hours ) ) {
-        you.add_msg_if_player( m_good, _( "You feel sleepy all of a sudden." ) );
+        you.add_msg_if_player( m_bad, _( "You feel sleepy all of a sudden." ) );
         you.mod_sleepiness( 10 * rng( 2, 4 ) );
     }
     if( one_turn_in( 8_hours ) ) {
@@ -618,7 +627,7 @@ void suffer::from_asthma( Character &you, const int current_stim )
 
     map &here = get_map();
     if( you.in_sleep_state() && !you.has_effect( effect_narcosis ) ) {
-        inventory map_inv;
+        temp_crafting_inventory map_inv;
         map_inv.form_from_map( you.pos_bub(), 2, &you );
         // check if an inhaler is somewhere near
         bool nearby_use = auto_use || oxygenator || map_inv.has_charges( itype_inhaler, 1 ) ||
@@ -1806,11 +1815,6 @@ bool Character::irradiate( float rads, bool bypass )
             }
 
             it->irradiation += delta;
-
-            // If in inventory (not worn), don't print anything.
-            if( inv->has_item( *it ) ) {
-                continue;
-            }
 
             // If the color hasn't changed, don't print anything.
             const std::string &col_before = rad_badge_color( before ).first;

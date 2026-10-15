@@ -60,9 +60,10 @@
     "name_unique": "Draco Dune",
     "gender": "male",
     "name_suffix": "Refugee",
+    "portrait_filename": "Named_NPC_draco_dune",
     "class": "NC_REFUGEE_Draco",
     "attitude": 0,
-    "mission": 7,
+    "mission": "GUARD",
     "chat": "TALK_REFUGEE_Draco_1",
     "faction": "free_merchants",
     "mission_offered": "MISSION_REFUGEE_Draco_GET_GUITAR"

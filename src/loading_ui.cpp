@@ -22,6 +22,8 @@
 #include "cursesdef.h"
 #endif // TILES
 
+namespace
+{
 struct ui_state {
     ui_adaptor *ui;
     background_pane *bg;
@@ -30,6 +32,9 @@ struct ui_state {
     ImVec2 splash_size;
     SDL_Texture_Ptr splash;
     cata_path chosen_load_img;
+    // size of the source image, kept to refit it when the screen or fonts change
+    int img_w = 0;
+    int img_h = 0;
 #else
     size_t splash_width = 0;
     std::vector<std::string> splash;
@@ -46,6 +51,7 @@ struct ui_state {
     std::string context;
     std::string step;
 };
+} // namespace
 
 static ui_state *gLUI = nullptr;
 
@@ -53,7 +59,8 @@ static void redraw()
 {
 #ifdef TILES
     ImGui::SetNextWindowSize( ImGui::GetMainViewport()->Size );
-    ImGui::SetNextWindowPos( {-1, -1}, ImGuiCond_Always );
+    ImGui::SetNextWindowPos( {0, 0}, ImGuiCond_Always );
+    ImGui::PushStyleVar( ImGuiStyleVar_WindowBorderSize, 0.0f );
     if( ImGui::Begin( "Loading…", nullptr,
                       ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove |
                       ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings ) ) {
@@ -64,7 +71,9 @@ static void redraw()
         const float center_x = ImGui::GetMainViewport()->Size.x / 2;
         const float image_start_pos_x = center_x - ( gLUI->splash_size.x / 2 );
         ImGui::SetCursorPosX( image_start_pos_x );
-        ImGui::Image( reinterpret_cast<ImTextureID>( gLUI->splash.get() ), gLUI->splash_size );
+        if( gLUI->splash && gLUI->splash_size.x > 0.0f ) {
+            ImGui::Image( reinterpret_cast<ImTextureID>( gLUI->splash.get() ), gLUI->splash_size );
+        }
 
         // hint
         ImGui::SetCursorPosY( ImGui::GetWindowHeight() - gLUI->text_height );
@@ -92,17 +101,18 @@ static void redraw()
         cataimgui::draw_colored_text( loading_msg, ImGui::GetContentRegionAvail().x );
     }
     ImGui::End();
+    ImGui::PopStyleVar();
 
 #else
-    int x = ( TERMX - static_cast<int>( gLUI->splash_width ) ) / 2;
-    int y = 0;
+    point cursor( ( TERMX - static_cast<int>( gLUI->splash_width ) ) / 2, 0 );
     nc_color white = c_white;
     for( const std::string &line : gLUI->splash ) {
         if( !line.empty() && line[0] == '#' ) {
             continue;
         }
-        print_colored_text( catacurses::stdscr, point( x, y++ ), white,
+        print_colored_text( catacurses::stdscr, cursor, white,
                             white, line );
+        cursor.y++;
     }
     mvwprintz( catacurses::stdscr, point( 0, TERMY - 1 ), c_black, gLUI->blanks );
     center_print( catacurses::stdscr, TERMY - 1, c_white, string_format( "%s %s",
@@ -110,8 +120,55 @@ static void redraw()
 #endif
 }
 
+#ifdef TILES
+static void layout()
+{
+    // padding will eat some of it, but we cannot access padding without imgui window
+    // so eyeball a bit off the main viewport to compensate
+    const ImVec2 screen_size = ImGui::GetMainViewport()->Size * 0.98f;
+
+    // if our screen space is at least twice as large as minimal, we will use 1.5x font size
+    gLUI->large_hint_size = cataimgui::min_screen_res_y * 2.f < screen_size.y;
+
+    // calculate hint_height maybe with increased font
+    // ideally it would use proper ImGui::PopFont(), but it requires imgui window, which we do not have here
+    // so we just eyeball it to be 1.6x bigger than normal-sized string
+    if( gLUI->large_hint_size ) {
+        gLUI->hint_height = cataimgui::get_string_height( gLUI->tip, screen_size.x ) * 1.6f;
+    } else {
+        gLUI->hint_height = cataimgui::get_string_height( gLUI->tip, screen_size.x );
+    }
+
+    // no matter the size, loading message always fit in 1 line,
+    // so just use dummy line to calculate its height
+    gLUI->loading_msg_height = cataimgui::get_string_height( " ", 0 );
+
+    gLUI->text_height = gLUI->hint_height + gLUI->loading_msg_height;
+
+    // calculate max size of image, decreasing it by the size of text below
+    const ImVec2 max_img_size = { screen_size.x, screen_size.y - gLUI->text_height };
+    if( gLUI->img_w <= 0 || gLUI->img_h <= 0 || max_img_size.x <= 0.0f || max_img_size.y <= 0.0f ) {
+        // no room left above the text, or no image
+        gLUI->splash_size = ImVec2();
+    } else {
+        // preserve aspect ratio by finding the longest **relative** side and scaling both sides by its ratio to max_img_size
+        // scales both "up" and "down"
+        float width_ratio = static_cast<float>( gLUI->img_w ) / max_img_size.x;
+        float height_ratio = static_cast<float>( gLUI->img_h ) / max_img_size.y;
+        float longest_side_ratio = width_ratio > height_ratio ? width_ratio : height_ratio;
+        gLUI->splash_size = { static_cast<float>( gLUI->img_w ) / longest_side_ratio,
+                              static_cast<float>( gLUI->img_h ) / longest_side_ratio
+                            };
+    }
+    gLUI->window_size = gLUI->splash_size + ImVec2{ 0.0f, 2.0f * ImGui::GetTextLineHeightWithSpacing() };
+}
+#endif
+
 static void resize()
 {
+#ifdef TILES
+    layout();
+#endif
 }
 
 static void update_state( const std::string &context, const std::string &step )
@@ -129,35 +186,13 @@ static void update_state( const std::string &context, const std::string &step )
         } );
 
 #ifdef TILES
-        // padding will eat some of it, but we cannot access padding without imgui window
-        // so eyeball a bit off the main viewport to compensate
-        const ImVec2 screen_size = ImGui::GetMainViewport()->Size * 0.98f;
-
-        // get snippet text and calculate it's size ahead of time
         gLUI->tip = SNIPPET.random_from_category( "tip" ).value_or(
                         translation() ).translated();
-
-        // if our screen space is at least twice as large as minimal, we will use 1.5x font size
-        gLUI->large_hint_size = cataimgui::min_screen_res_y * 2.f < screen_size.y;
-
-        // calculate hint_height maybe with increased font
-        // ideally it would use proper ImGui::PopFont(), but it requires imgui window, which we do not have here
-        // so we just eyeball it to be 1.6x bigger than normal-sized string
-        if( gLUI->large_hint_size ) {
-            gLUI->hint_height = cataimgui::get_string_height( gLUI->tip, screen_size.x ) * 1.6f;
-        } else {
-            gLUI->hint_height = cataimgui::get_string_height( gLUI->tip, screen_size.x );
-        }
-
-        // no matter the size, loading message always fit in 1 line,
-        // so just use dummy line to calculate it's height
-        gLUI->loading_msg_height = cataimgui::get_string_height( " ", 0 );
-
-        gLUI->text_height = gLUI->hint_height + gLUI->loading_msg_height;
 
         // get image
         std::vector<cata_path> imgs;
         std::vector<mod_id> &active_mod_list = world_generator->active_world->active_mod_order;
+        bool only_mod_loading_screens = false;
         for( mod_id &some_mod : active_mod_list ) {
             // We haven't migrated mods yet
             // TODO: Move mod migration before this function?
@@ -165,16 +200,24 @@ static void update_state( const std::string &context, const std::string &step )
                 continue;
             }
             const MOD_INFORMATION &mod = *some_mod;
+            if( mod.disable_other_loading_screens ) {  // Clear any already loaded screens, use only from the mod that has asked for this behaviour in the modinfo.
+                only_mod_loading_screens = true;
+                imgs.clear();
+            }
             for( const std::string &img_name : mod.loading_images ) {
                 // There may be more than one file matching the name, so we need to get all of them
                 for( cata_path &img_path : get_files_from_path( img_name, mod.path, true ) ) {
                     imgs.emplace_back( img_path );
                 }
             }
+            if( only_mod_loading_screens ) {
+                break;
+            }
         }
         // We haven't selected a loading image yet, let's do so.
         if( gLUI->chosen_load_img == cata_path() ) {
-            if( imgs.empty() ) { // No modded screens available, so let's consider the vanilla ones.
+            if( imgs.empty() ||
+                !only_mod_loading_screens ) { // No modded screens available or not disabled in the mods, so let's add vanilla ones.
                 const std::string img_name_pattern = "loading_img";
                 const cata_path load_screens_directory = PATH_INFO::gfxdir() / "loading_screens";
                 for( cata_path &img_path : get_files_from_path( img_name_pattern, load_screens_directory, true ) ) {
@@ -184,18 +227,15 @@ static void update_state( const std::string &context, const std::string &step )
             gLUI->chosen_load_img = random_entry( imgs );
         }
         SDL_Surface_Ptr surf = load_image( gLUI->chosen_load_img.get_unrelative_path().u8string().c_str() );
-        // calculate max size of image, decreasing it by the size of text below
-        const ImVec2 max_img_size = { screen_size.x, screen_size.y - gLUI->text_height };
-        // preserve aspect ratio by finding the longest **relative** side and scaling both sides by its ratio to max_img_size
-        // scales both "up" and "down"
-        float width_ratio = static_cast<float>( surf->w ) / max_img_size.x;
-        float height_ratio = static_cast<float>( surf->h ) / max_img_size.y;
-        float longest_side_ratio = width_ratio > height_ratio ? width_ratio : height_ratio;
-        gLUI->splash_size = { static_cast<float>( surf->w ) / longest_side_ratio,
-                              static_cast<float>( surf->h ) / longest_side_ratio
-                            };
-        gLUI->splash = CreateTextureFromSurface( get_sdl_renderer(), surf );
-        gLUI->window_size = gLUI->splash_size + ImVec2{ 0.0f, 2.0f * ImGui::GetTextLineHeightWithSpacing() };
+        gLUI->img_w = surf->w;
+        gLUI->img_h = surf->h;
+        if( !renderer_should_abort_frame() ) {
+            // Skip the upload when recovery is queued: it would invalidate the
+            // texture. The splash stays absent for this load rather than uploading
+            // against a renderer about to be rebuilt.
+            gLUI->splash = CreateTextureFromSurface( get_sdl_renderer(), surf );
+        }
+        layout();
 #else
         std::string splash = PATH_INFO::title( get_holiday_from_time() );
         if( get_option<bool>( "ENABLE_ASCII_TITLE" ) ) {
@@ -221,6 +261,7 @@ void loading_ui::show( const std::string &context, const std::string &step )
         return;
     }
     update_state( context, step );
+    drain_renderer_recovery();
     ui_manager::redraw();
     refresh_display();
     inp_mngr.pump_events();
@@ -230,11 +271,21 @@ void loading_ui::done()
 {
     if( gLUI != nullptr ) {
 #ifdef TILES
-        gLUI->chosen_load_img = cata_path();
+        // Need to manually clear the screen due to using direct ImGui calls
+        clear_sdl_window();
 #endif
         delete gLUI->ui;
         delete gLUI->bg;
         delete gLUI;
         gLUI = nullptr;
     }
+}
+
+void loading_ui::release_gpu_resources()
+{
+#ifdef TILES
+    if( gLUI != nullptr ) {
+        gLUI->splash.reset();
+    }
+#endif
 }

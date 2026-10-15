@@ -1132,7 +1132,7 @@
     "id": "flask_illumination",
     "type": "effect_type",
     "name": [ "Illuminatio" ],
-    "desc": [ "Your body emit a lot of light around." ],
+    "desc": [ "Your body emits a lot of light around you." ],
     "apply_message": "Your skin glow like an old lantern.  You feel no discomfort for some reason.",
     "remove_message": "Your skin turn back to normal state.",
     "rating": "good",
@@ -1379,6 +1379,16 @@
         "values": [ { "value": "CLIMATE_CONTROL_CHILL", "add": 50 } ]
       }
     ]
+  },
+  {
+    "type": "effect_type",
+    "id": "effect_kelvinist_frozen_heart",
+    "name": [ "The Rime-Covered Heart" ],
+    "desc": [ "All emotion is frozen out." ],
+    "remove_message": "You take a shuddering breath as emotion floods back into your heart.",
+    "rating": "mixed",
+    "max_duration": 38400,
+    "flags": [ "NUMB", "PSYCHOPATH" ]
   },
   {
     "type": "effect_type",
@@ -1698,7 +1708,7 @@
     "desc": [ "You bleed less than normal." ],
     "rating": "good",
     "max_duration": 25200,
-    "flags": [ "BLEEDSLOW" ]
+    "enchantments": [ { "values": [ { "value": "BLEEDING_RATE", "multiply": -0.333 } ] } ]
   },
   {
     "type": "effect_type",
@@ -1707,7 +1717,7 @@
     "desc": [ "You bleed much less than normal." ],
     "rating": "good",
     "max_duration": 25200,
-    "flags": [ "BLEEDSLOW2" ]
+    "enchantments": [ { "values": [ { "value": "BLEEDING_RATE", "multiply": -0.666 } ] } ]
   },
   {
     "type": "effect_type",
@@ -2006,6 +2016,48 @@
   },
   {
     "type": "effect_type",
+    "id": "effect_periapt_health",
+    "//": "Hidden effect, makes the periapt of health block diseases and infection",
+    "name": [ "" ],
+    "desc": [ "" ],
+    "removes_effects": [
+      "nausea",
+      "bite",
+      "infected",
+      "spores",
+      "fungus",
+      "dermatik",
+      "pre_common_cold",
+      "pre_flu",
+      "common_cold",
+      "flu",
+      "tetanus",
+      "asthma",
+      "tapeworm",
+      "brainworms",
+      "bloodworms"
+    ]
+  },
+  {
+    "type": "effect_type",
+    "id": "effect_periapt_proof_against_poison",
+    "//": "Hidden effect, makes the periapt of proof against poison prevent poisons",
+    "name": [ "" ],
+    "desc": [ "" ],
+    "removes_effects": [
+      "poison",
+      "badpoison",
+      "tpollen",
+      "venom_dmg",
+      "venom_weaken",
+      "venom_blind",
+      "venom_pain",
+      "foodpoison",
+      "paralyzepoison"
+    ]
+  },
+  {
+    "type": "effect_type",
     "id": "effect_feral_stormshaper_stormhammer",
     "name": [ { "str": "Wielding Stormhammer", "//~": "NO_I18N" } ],
     "desc": [ { "str": "You are a monster wielding a stormhammer, as this effect indicates.", "//~": "NO_I18N" } ],
@@ -2233,7 +2285,7 @@
       { "u_remove_item_with": "stormglove" },
       { "u_remove_item_with": "electric_lighter" },
       { "u_remove_item_with": "flask_ethereal_rebreather" },
-      { "u_remove_item_with": "armor_spirit" },
+      { "u_remove_item_with": "item_armor_magus_mage_conjured_armor" },
       { "u_remove_item_with": "item_armor_magus_mage_conjured_armor" },
       { "u_remove_item_with": "magic_lamp" },
       { "u_remove_item_with": "technomancer_summoned_radio" },
@@ -2396,7 +2448,7 @@
       { "u_remove_item_with": "stormglove" },
       { "u_remove_item_with": "electric_lighter" },
       { "u_remove_item_with": "flask_ethereal_rebreather" },
-      { "u_remove_item_with": "armor_spirit" },
+      { "u_remove_item_with": "item_armor_magus_mage_conjured_armor" },
       { "u_remove_item_with": "magic_lamp" },
       { "u_remove_item_with": "technomancer_summoned_radio" },
       { "u_remove_item_with": "technomancer_welder" },

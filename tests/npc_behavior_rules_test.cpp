@@ -6,6 +6,7 @@
 #include "cata_catch.h"
 #include "character.h"
 #include "coordinates.h"
+#include "enums.h"
 #include "game.h"
 #include "gates.h"
 #include "map.h"
@@ -149,6 +150,7 @@ TEST_CASE( "NPC-rules-close-doors", "[npc_rules]" )
     int turns_taken = 0;
     while( turns_taken++ < 100 && test_subject->pos_bub() != chair_target ) {
         test_subject->set_moves( 100 );
+        test_subject->process_activity();
         test_subject->move();
     }
 
@@ -213,7 +215,7 @@ TEST_CASE( "NPC-rules-avoid-locks", "[npc_rules]" )
 
 
     vehicle *test_vehicle = here.add_vehicle( vehicle_prototype_locked_as_hell_car,
-                            car_center_pos, 0_degrees, 0, 0 );
+                            car_center_pos, 0_degrees, 0, veh_spawn_status::UNDAMAGED );
 
     // vehicle is a 5x5 grid, car_door_pos is the only door/exit
     std::vector<vehicle_part *> door_parts_at_target = test_vehicle->get_parts_at(

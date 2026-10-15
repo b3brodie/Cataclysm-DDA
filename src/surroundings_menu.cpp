@@ -146,16 +146,20 @@ static void move_selection( T &data, const int amount )
 
     auto it = std::find( data.filtered_list.begin(), data.filtered_list.end(), data.selected_entry );
 
-    if( ( amount < 0 && it == data.filtered_list.begin() ) || ( amount > 0 &&
-            amount > std::distance( it, data.filtered_list.end() ) ) ) {
+    // NOLINTBEGIN (bugprone-branch-clone)
+    // order of conditions is important
+    if( amount > 0 && it == data.filtered_list.end() - 1 ) {
+        data.selected_entry = *data.filtered_list.begin();
+    } else if( ( amount < 0 && it == data.filtered_list.begin() ) || ( amount > 0 &&
+               amount > std::distance( it, data.filtered_list.end() - 1 ) ) ) {
         data.selected_entry = *data.filtered_list.rbegin();
-    } else if( ( amount < 0 && amount < std::distance( it, data.filtered_list.begin() ) ) ||
-               ( amount > 0 && it == data.filtered_list.end() - 1 ) ) {
+    } else if( amount < 0 && amount < std::distance( it, data.filtered_list.begin() ) ) {
         data.selected_entry = *data.filtered_list.begin();
     } else {
         std::advance( it, amount );
         data.selected_entry = *it;
     }
+    // NOLINTEND (bugprone-branch-clone)
 }
 
 tab_data::tab_data( const std::string &title ) : title( title )
@@ -754,10 +758,7 @@ cataimgui::bounds surroundings_menu::get_bounds()
 
 void surroundings_menu::draw_controls()
 {
-    if( hide_ui ) {
-        ImGuiWindow *w = ImGui::GetCurrentWindowRead();
-        ImGui::SetWindowHiddenAndSkipItemsForCurrentFrame( w );
-    }
+    hide_if_hidden();
     if( ImGui::BeginTabBar( "surroundings tabs" ) ) {
         draw_item_tab();
         draw_monster_tab();
@@ -863,7 +864,7 @@ void surroundings_menu::draw_item_tab()
                     ImGui::TableNextColumn();
                     ImGui::PushID( entry_no++ );
                     ImGui::Selectable( "", &is_selected,
-                                       ImGuiSelectableFlags_AllowItemOverlap | ImGuiSelectableFlags_SpanAllColumns, ImVec2( 0, 0 ) );
+                                       ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns, ImVec2( 0, 0 ) );
                     if( is_selected ) {
                         if( auto_scroll || item_data.selected_entry != it ) {
                             // auto_scroll marks keyboard selected items
@@ -899,7 +900,7 @@ void surroundings_menu::draw_item_tab()
 
                     // FIXME: these width calculations somehow work for variable-width but not for fixed-width fonts
                     ImFont *font = ImGui::GetFont();
-                    float newness_str_width = font->CalcTextSizeA( font->FontSize, FLT_MAX, 0.f,
+                    float newness_str_width = font->CalcTextSizeA( ImGui::GetFontSize(), FLT_MAX, 0.f,
                                               newness_str.c_str() ).x + ImGui::GetStyle().ItemSpacing.x;
                     float wrap_width_subtrahend = ImGui::GetStyle().ItemSpacing.x;
                     if( highlight_new && !newness_str.empty() ) {
@@ -1004,7 +1005,7 @@ void surroundings_menu::draw_monster_tab()
                 ImGui::TableNextColumn();
                 ImGui::PushID( entry_no++ );
                 ImGui::Selectable( "", &is_selected,
-                                   ImGuiSelectableFlags_AllowItemOverlap | ImGuiSelectableFlags_SpanAllColumns, ImVec2( 0, 0 ) );
+                                   ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns, ImVec2( 0, 0 ) );
                 if( is_selected ) {
                     if( auto_scroll ) {
                         ImGui::SetScrollHereY();
@@ -1127,7 +1128,7 @@ void surroundings_menu::draw_terfurn_tab()
                 ImGui::TableNextColumn();
                 ImGui::PushID( entry_no++ );
                 ImGui::Selectable( "", &is_selected,
-                                   ImGuiSelectableFlags_AllowItemOverlap | ImGuiSelectableFlags_SpanAllColumns, ImVec2( 0, 0 ) );
+                                   ImGuiSelectableFlags_AllowOverlap | ImGuiSelectableFlags_SpanAllColumns, ImVec2( 0, 0 ) );
                 if( is_selected ) {
                     if( auto_scroll ) {
                         ImGui::SetScrollHereY();

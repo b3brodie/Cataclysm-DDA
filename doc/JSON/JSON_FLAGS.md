@@ -176,9 +176,13 @@ Some armor flags, such as `WATCH` and `ALARMCLOCK` are compatible with other ite
 - ```ABLATIVE_SKIRT``` item can be worn with Hub 01 armor without encumbrance penalty; specifically can be put in pocket for armor with this flag restriction.
 - ```ACTIVE_CLOAKING``` While active, drains UPS to provide invisibility.
 - ```ALARMCLOCK``` Has an alarm-clock feature.
+- ```ALLOWS_GASTROPOD_FOOT``` You can wear this item even if you have a gastropod foot instead of human legs.
+- ```ALLOWS_LEG_TENTACLES``` You can wear this item even if you have cephalopod tentacles instead of human legs.
 - ```ALLOWS_NATURAL_ATTACKS``` Doesn't prevent any natural attacks or similar benefits from mutations, fingertip razors, etc., like most items covering the relevant body part would.
-- ```ALLOWS_TAIL``` You can wear this leg-covering item even if you have a tail.
+- ```ALLOWS_TAIL``` You can wear this leg-covering item even if you have a tail
 - ```ALLOWS_TALONS``` People with talon mutations still can wear this armor, that cover feet.
+- ```ALLOWS_WING_ARMS``` People whose arms have turned into wings can still wear this armor.
+- ```ALLOWS_WINGS``` People with independent wings growing from their backs can still wear this armor.
 - ```AURA``` This item goes in the outer aura layer, intended for metaphysical effects.
 - ```BAROMETER``` This gear is equipped with an accurate barometer (which is used to measure atmospheric pressure).
 - ```BELTED``` Layer for backpacks and things worn over outerwear.
@@ -217,6 +221,7 @@ Some armor flags, such as `WATCH` and `ALARMCLOCK` are compatible with other ite
 - ```NORMAL``` Items worn like normal clothing.  This is assumed as default.
 - ```NO_TAKEOFF``` Item with that flag can't be taken off.
 - ```NO_WEAR_EFFECT``` This gear doesn't provide any effects when worn (most jewelry).
+- ```NO_WING_GLIDING``` This gear prevents using your wings to glide when worn
 - ```OUTER```  Outer garment layer.
 - ```OVERSIZE``` Can always be worn no matter what encumbrance/mutations/bionics/etc, but prevents any other clothing being worn over this.
 - ```PADDED``` This armor counts as comfortable even if none of the specific materials are soft.
@@ -232,6 +237,11 @@ Some armor flags, such as `WATCH` and `ALARMCLOCK` are compatible with other ite
 - ```RAINPROOF``` Prevents the covered body-part(s) from getting wet in the rain.
 - ```REQUIRES_BALANCE``` Gear that requires a certain balance to be steady with.  If the player is hit while wearing, they have a chance to be downed.
 - ```RESTRICT_HANDS``` Prevents the player from wielding a weapon two-handed, forcing one-handed use if the weapon permits it.
+- ```ROBOFAC_ARM``` This item is a Hub 01 ARM exoskeleton.  It requires an implanted XM-ARM interface to function.
+- ```ROBOFAC_BACK``` This item is a Hub 01 BACK exoskeleton.  It requires an implanted XM-LEG interface and it must be worn with ARM and LEG exoskeletons to function.
+- ```ROBOFAC_LEG``` This item is a Hub 01 LEG exoskeleton.  It requires an implanted XM-LEG interface to function.
+- ```ROBOFAC_LENS_ACCESSORY``` This item is an accessory for a Hub 01 LENS helmet, and can only be worn with that helmet.
+- ```ROBOFAC_LENS_HELMET``` This item allows you to wear Hub 01 LENS accessories.
 - ```ROLLER_INLINE``` Faster, but less stable overall, the penalty for non-flat terrain is even harsher.
 - ```ROLLER_ONE``` A less stable and slower version of `ROLLER_QUAD`, still allows the player to move faster than walking speed.
 - ```ROLLER_QUAD```The medium choice between `ROLLER_INLINE` and `ROLLER_ONE`, while it is more stable, and moves faster, it also has a harsher non-flat terrain penalty than `ROLLER_ONE`.
@@ -323,7 +333,10 @@ Some armor flags, such as `WATCH` and `ALARMCLOCK` are compatible with other ite
 - ```LIMB_UPPER``` This bodypart is high off the ground, and as such can't be attacked by small monsters - unless they have the `FLIES` or have `ATTACK_UPPER` flags`.
 - ```MEND_LIMB``` This bodypart can heal from being broken without needing a splint.
 - ```NO_LIMB_FIRST_AID``` This bodypart cannot be bandaged or disinfected.
+- ```NON_FLESH_LIMB``` The bodypart is immune to a number of effects like poisoning or infection.
 - ```NONSTANDARD_BLOCK``` This limb is different enough that martial arts' arm/leg blocks aren't applicable - blocking with this limb is unlocked by reaching the MA's `nonstandard_block` level, unless the limb also has `ALWAYS_BLOCK`.  Either block flag is **required** for non-arm / non-leg limbs to be eligible to block.
+- ```PARTIAL_BIONIC_LIMB``` This limb is at least in part mechanical.
+- ```WINGS_2``` You can slow your fall, effectively reducing the height of falls by 2 levels, and ignore pit-like traps if two instances of the flag are present.
 - ```WING_ARMS``` Counts as a wing for `Character::can_fly` if two instances of the flag are present.
 
 
@@ -349,8 +362,6 @@ Character flags can be `trait_id`, `json_flag_id` or `flag_id`.  Some of these a
 - ```BG_SURVIVAL_STORY``` Given to NPC when it has a survival story.
 - ```BIO_IMMUNE``` You are immune to biological damage.
 - ```BLEED_IMMUNE``` Immune to bleeding.
-- ```BLEEDSLOW``` When bleeding, lose blood at 2/3 of the normal rate.
-- ```BLEEDSLOW2``` When bleeding, lose blood at 1/3 of the normal rate.
 - ```BLIND``` Makes you blind.
 - ```BLOCK_HUGE_ATTACKS``` Size limitations on blocking are ignored
 - ```BLOCK_SUPERNATURAL_HEALING``` Blocks supernatural healing effects, like magical healing spells, from taking effect.  This flag does not block EoC-based healing like using the u_hp() effect.
@@ -358,8 +369,11 @@ Character flags can be `trait_id`, `json_flag_id` or `flag_id`.  Some of these a
 - ```CANNIBAL``` Butcher humans, eat foods with the `CANNIBALISM` and `STRICT_HUMANITARIANISM` flags without a morale penalty.
 - ```CANNOT_ATTACK``` A creature with this flag cannot attack (includes spellcasting).
 - ```CANNOT_CHANGE_TEMPERATURE``` A creature with this flag cannot change body temperature.
+- ```CANNOT_CONSUME_DRUGS``` A creature with this flag cannot use items with the `consume_drug` use_action.
 - ```CANNOT_GAIN_EFFECTS``` A creature with this effect flag cannot gain effects.
+- ```CANNOT_GAIN_WEARINESS``` A character with this flag always has Fresh weariness. Weariness is still tracked in the background and accurately set when the flag wears off.
 - ```CANNOT_MOVE``` A creature with this flag cannot move.
+- ```CANNOT_SLEEP``` A character with this flag cannot sleep. It does not prevent any of the negative effects of extreme tiredness.
 - ```CANNOT_TAKE_DAMAGE``` A creature with this flag cannot take any damage.
 - ```CANNOT_USE_COMPUTERS``` A creature with this flag cannot activate a computer terminal or use various computer functions (e.g. saving ebooks or reading efiles).
 - ```CBQ_LEARN_BONUS``` You learn CBQ from the bionic bio_cqb faster.
@@ -376,6 +390,7 @@ Character flags can be `trait_id`, `json_flag_id` or `flag_id`.  Some of these a
 - ```CUT_IMMUNE``` You are immune to cutting damage.
 - ```DEAF``` Makes you deaf.
 - ```DIMENSIONAL_ANCHOR``` You can't be teleported.  Also protects you from any dangerous effects of portal storms.
+- ```DISTRIBUTED_DAMAGE``` All damage you take is divided equally among your bodyparts.
 - ```DOWNED_RECOVERY``` Always has 50% chance to recover from downing, regardless of limb scores / stats.
 - ```ECTOTHERM``` For ectothermic mutations, like `COLDBLOOD4` and `DRAGONBLOOD3` (Black Dragon from Magiclysm).
 - ```ETHEREAL```  You will not drop your items if you gain the `incorporeal` effect.
@@ -397,11 +412,13 @@ Character flags can be `trait_id`, `json_flag_id` or `flag_id`.  Some of these a
 - ```HERITAGE``` Turns a mutation with this flag light cyan on the list.  Currently used in mods for mutations that indicate non-human ancestry.
 - ```HIGH_GLARE``` Glare lasts twice as long
 - ```HUGE``` Changes your size to `creature_size::huge`.  Checked last of the size category flags, if no size flags are found your size defaults to `creature_size::medium`.
+- ```HUNGER_DISRUPTION``` You cannot tell how hungry you are 
 - ```HYPEROPIC``` You are far-sighted: close combat is hampered and reading is impossible without glasses.
 - ```INHALED_TOXIN_IMMUNE``` You are immune to any inhaled toxin that mouth environmental resistance would also protect against.
 - ```IMMUNE_HEARING_DAMAGE``` Immune to hearing damage from loud sounds.
 - ```IMMUNE_SPOIL``` You are immune to negative outcomes from spoiled food.
 - ```INFECTION_IMMUNE``` This mutation grants immunity to infections, including infection from bites and tetanus.
+- ```INFECTION_RECOVERY``` You can recover from infections easier to the same degree as the Infection Resistant mutation (which it stacks with)
 - ```INSECTBLOOD``` Your body drip insect blood if wounded.
 - ```INSTANT_BLEED``` You bleed corpses in 1 second each.
 - ```INVERTEBRATEBLOOD``` Your body drip invertebrate blood if wounded
@@ -431,9 +448,12 @@ Character flags can be `trait_id`, `json_flag_id` or `flag_id`.  Some of these a
 - ```ONE_STORY_FALL``` You can slow your fall, effectively reducing the height of it by 1 level.
 - ```PAIN_IMMUNE``` Character don't feel pain.
 - ```PARAIMMUNE``` You are immune to parasites.
+- ```PAUSE_BODYPART_INFECTION``` Infections on the bodypart that has an effect with this flag cannot kill you
+- ```PAUSE_INFECTIONS``` Infections on any bodypart cannot kill you while you have this flag
 - ```PHASE_MOVEMENT``` DEBUG. Completely ignores all impassable tiles, gravity checks, etc. and forces movement anyway.
 - ```PLANTBLOOD``` Your body drip veggy blood if wounded.
 - ```PORTAL_PROOF``` You are immune to personal portal storm effects.
+- ```PERK``` Turns a mutation with this flag light cyan on the list.  Currently used in the Bombastic Perks mod to sort perks.
 - ```PRED1``` Small morale bonus from foods with the `PREDATOR_FUN` flag.  Lower morale penalty from the guilt mondeath effect.
 - ```PRED2``` Learn combat skills with double catchup modifier.  Resist skill rust on combat skills.  Small morale bonus from foods with the `PREDATOR_FUN` flag.  Lower morale penalty from the guilt mondeath effect.
 - ```PRED3``` Learn combat skills with double catchup modifier.  Resist skill rust on combat skills.  Medium morale bonus from foods with the `PREDATOR_FUN` flag.  Immune to the guilt mondeath effect.
@@ -480,8 +500,6 @@ Character flags can be `trait_id`, `json_flag_id` or `flag_id`.  Some of these a
 - ```WEBBED_HANDS``` You have webbings on your hands, supporting your swimming speed.
 - ```WEB_RAPPEL``` You can rappel down staircases and sheer drops of any height.
 - ```WEB_WALKER``` Removes the movement speed demerit while walking through webs.
-- ```WINGS_2``` You can slow your fall, effectively reducing the height of falls by 2 levels, and ignore pit-like traps.
-- ```WING_ARMS``` Two instances of this flag enable you to glide and ignore pit traps if not above 50% carryweight or 4 lift strength.
 - ```WINGGLIDE``` You can glide using some part of your body and strenuous physical effort.
 - ```mycus``` acts as `THRESH_MYCUS`, makes all monsters with FUNGUS species friendly, fungicidal gas & antifungal pills cause worse effects.  Mutate when eating mycus fruit, or when sleeping.
 
@@ -527,6 +545,7 @@ These branches are the valid `dreams` from [dreams.json](/data/json/dreams.json)
 - ```FUNGAL_VECTOR``` Will give a fungal infection when consumed.
 - ```HIDDEN_HALLU``` Food causes hallucinations, visible only with a certain survival skill level.
 - ```HIDDEN_POISON``` Food displays as poisonous with a certain survival skill level.  Note that this doesn't make items poisonous on its own, consider adding `"use_action": [ "POISON" ]` as well, or using `FORAGE_POISON` instead.
+- ```MARLOSS``` Marloss food, refused by NPCs and characters with `MARLOSS_AVOID` or `THRESH_MYCUS` before consumption effects, nutrition or addictions are applied.  Does not apply to Mycus food.
 - ```MELTS``` Provides half fun unless frozen.  Edible when frozen.
 - ```MILLABLE``` Can be placed inside a mill, to turn into flour.
 - ```MUTAGEN_CATALYST``` Injecting it will jumpstart mutation.
@@ -588,8 +607,6 @@ These flags apply to the `use_action` field, instead of the `flags` field.
 - ```HONEYCOMB``` Spawns wax.
 - ```INHALER``` Removes disease `asthma`.
 - ```IODINE``` Adds disease `iodine`.
-- ```MARLOSS``` "As you eat the berry, you have a near-religious experience, feeling at one with your surroundings..."
-- ```MYCUS``` if has trait `THRESH_MARLOSS`, neutral effect removes radiation, add 30 painkiller & heals all bodyparts by 4.  if good effect, add 1000 morale, sleep for 5 hours, add `THRESH_MYCUS`, also removes marloss addictions `addiction_marloss_r`,`addiction_marloss_b`, `addiction_marloss_y` .  With mycus threshold, adds 5 painkiller and stimulant.  With trait `M_DEPENDENT`, removes 87 kcal, add 10 thirst, adds 5 sleepiness, and add morale to negate mutation pains. not having previously mentioned traits causes you to vomit, mutate, randomly gain 2 pain, reduce daily health by 8-50, removes 87 kcal, add 10 thirst, and add 5 sleepiness.  Only applies to mycus fruit by default.
 - ```METH``` Adds disease `meth`.
 - ```NONE``` "You can't do anything of interest with your [x]."
 - ```PETFOOD``` "Lets you feed the item to animals. Specify in `petfood` i.e. `[ "CATTLEFOOD", "DOGFOOD", "CATFOOD", "BIRDFOOD" ]`."
@@ -838,8 +855,8 @@ These flags can be applied via JSON item definition to most items.  Not to be co
 - ```FLAMING``` This item is on fire, you deal additional fire damage using it.
 - ```FRAGILE_MELEE``` Fragile items that fall apart easily when used as a weapon due to poor construction quality and will break into components when broken.
 - ```FRESH_GRAIN``` This item is fresh-cut grain, and can be dried in a stook.
-- ```GASFILTER_MED``` This is a medium size gas filter cartridge, that is used as magazine for various gasmasks.
-- ```GASFILTER_SM``` This is a small size gas filter cartridge, that is used as magazine for various gasmasks.
+- ```GASFILTER_MED``` This is a medium size gas filter cartridge, that is used as magazine for various gas masks.
+- ```GASFILTER_SM``` This is a small size gas filter cartridge, that is used as magazine for various gas masks.
 - ```GAS_DISCOUNT``` Discount cards for the automated gas stations.
 - ```GAS_TANK``` This item can store gases.
 - ```GEMSTONE``` This is a gemstone, and you can put it in some jewelry.
@@ -1149,7 +1166,7 @@ Used to describe monster characteristics and set their properties and abilities.
 - ```CAN_BE_CULLED``` This animal can be culled if it's a pet.
 - ```CAN_DIG``` Will dig on any diggable terrain the same way `DIGS` does, however, will walk normally over non-diggable terrain.
 - ```CAN_OPEN_DOORS``` Can open doors on its path.
-- ```CLIMBS``` (depricated in favor of [moveskills](MONSTERS.md#move_skills)) Can climb over fences or similar obstacles quickly.
+- ```CLIMBS``` (deprecated in favor of [moveskills](MONSTERS.md#move_skills)) Can climb over fences or similar obstacles quickly.
 - ```CLUMSY_ATTACKS``` Has a 1 in 4 chance of falling over when missing an attack.
 - ```COLDPROOF``` Immune to cold damage.
 - ```COMBAT_MOUNT```  This mount has better chance to ignore hostile monster fear.
@@ -1254,7 +1271,7 @@ Used to describe monster characteristics and set their properties and abilities.
 - ```STUN_IMMUNE``` This monster is immune to stun.
 - ```SUNDEATH``` Dies in full sunlight.
 - ```SWARMS``` Groups together and forms loose packs.
-- ```SWIMS``` (depricated in favor of [moveskills](MONSTERS.md#move_skills)) Treats water as 50 movement point terrain.
+- ```SWIMS``` (deprecated in favor of [moveskills](MONSTERS.md#move_skills)) Treats water as 50 movement point terrain.
 - ```TRUESIGHT``` The monster can see creatures normally even if they have the `CAMOUFLAGE`, `INVISIBLE` or `NIGHT_INVISIBILITY` flags
 - ```UNREAKABLE_MORALE``` The monster will never run from combat once engaged
 - ```VAMP_VIRUS``` This monster can inflict the `vampire_virus` effect.  Used by Xedra Evolved mod.
@@ -1376,7 +1393,9 @@ See [Character](#character)
 - ```REQUIRES_PREDECESSOR``` Mapgen for this will not start from scratch; it will update the mapgen from the terrain it replaced.  This allows the corresponding json mapgen to use the `expects_predecessor` feature.
 - ```LAKE``` Consider this location to be a valid lake terrain for mapgen purposes.
 - ```LAKE_SHORE``` Consider this location to be a valid lake shore terrain for mapgen purposes.
-- ```PP_GENERATE_RIOT_DAMAGE``` Applies randomized riot damage to the local map as a last stage in generating it. Furniture and terrain will be bashed, items moved around, blood spatters are placed, and rarely spawns fires.
+- ```PP_GENERATE_RIOT_DAMAGE``` **Deprecated.**  Use `"post_process_generators": ["riot_damage"]` on the overmap terrain instead.  See [Post-Process Generators](OVERMAP.md#post-process-generators).  Applies randomized riot damage to the local map as a last stage in generating it.  Furniture and terrain will be bashed, items moved around, blood spatters are placed, and rarely spawns fires.
+- ```RAVINE``` Terrain is part of a ravine, used to properly carve out the terrain for ravine floors.
+- ```RAVINE_EDGE``` Terrain is part of a ravine, used to properly carve out the terrain for ravine edges
 - ```SOURCE_FUEL``` For NPC AI, this location may contain fuel for looting.
 - ```SOURCE_FOOD``` For NPC AI, this location may contain food for looting.
 - ```SOURCE_FARMING``` For NPC AI, this location may contain useful farming supplies for looting.
@@ -1456,13 +1475,16 @@ The purpose of these flags is to allow reuse of blueprints to create the "same" 
 ## Scenarios
 
 - ```BORDERED``` Initial start location is bordered by an enormous wall of solid rock.
-- ```CHALLENGE``` Game won't choose this scenario in random game types.
+- ```CHALLENGE``` Sorted into the "CHALLENGE" category in the character creation UI. Also, game won't choose this scenario in random game types.
 - ```CITY_START``` Scenario is available only when city size value in world options is more than 0.
 - ```FIRE_START``` Player starts the game with fire nearby.
+- ```FORGIVING``` Sorted into the "FORGIVING" category in the character creation UI.
 - ```HELI_CRASH``` Player starts the game with various limbs wounds.
 - ```LONE_START``` This scenario won't spawn a fellow NPC on game start.
 - ```NO_BONUS_ITEMS``` This scenario prevent bonus items (such as inhalers with the `ASTHMA` trait) from being given to this profession
+- ```STANDARD``` Sorted into the "STANDARD" category in the character creation UI.
 - ```SUR_START``` Write `Zombies nearby` in the scenario info, doesn't spawn monsters by itself (put close to `LONE_START`)
+- ```TOUGH``` Sorted into the "TOUGH" category in the character creation UI.
 
 
 ### Profession
@@ -1572,7 +1594,6 @@ These flags apply to the `use_action` field, instead of the `flags` field.
 - ```CROWBAR``` Pry open doors, windows, man-hole covers and many other things that need prying.
 - ```DIG``` Clear rubble.
 - ```DIRECTIONAL_ANTENNA``` Find the source of a signal with your radio.
-- ```DIVE_TANK``` Use compressed air tank to breathe.
 - ```DOG_WHISTLE``` Dogs hate this thing; your dog seems pretty cool with it though.
 - ```DOLLCHAT``` That creepy doll just keeps on talking.
 - ```EXTINGUISHER``` Put out fires.
@@ -1615,6 +1636,8 @@ These flags apply to the `use_action` field, instead of the `flags` field.
 - ```RESTAURANTMAP``` Learn of local eateries, and show roads.
 - ```ROADMAP``` Learn of local common points-of-interest and show roads.
 - ```SCISSORS``` Cut up clothing.
+- ```SCBA_MASK_ACTIVATE``` Prep SCBA regulator for breathing.  Transforms into an item with string <item_id>_scba_on.
+- ```SCBA_TANK_ACTIVATE``` Prep SCBA air source for breathing.
 - ```SEED``` Asks if you are sure that you want to eat the seed.  As it is better to plant seeds.
 - ```SEW``` Sew clothing.
 - ```SHELTER``` Put up a full-blown shelter.
@@ -1722,6 +1745,7 @@ Note: Vehicle parts requiring other parts is defined by setting a `requires_flag
 - ```E_STARTS_INSTANTLY``` Is an engine that starts instantly, like food pedals.
 - ```FLAT_SURF``` Part with a flat hard surface (e.g. table).
 - ```FLUIDTANK``` Allow to store liquid in this part.  Amount of liquid should be defined in item for this vehicle part.
+- ```FRAGILE_COMPONENTS``` This vehicle part can get a fault when receiving damage, even if that damage is nullified or reduced to 0.
 - ```FREEZER``` Can freeze items in below zero degrees Celsius temperature.
 - ```FRIDGE``` Can refrigerate items.
 - ```FUNNEL``` If installed over a vehicle tank, can collect rainwater during rains.

@@ -35,6 +35,7 @@
   - [Spawn npcs with "place_npcs"](#spawn-npcs-with-place_npcs)
   - [Set variables with "place_variables"](#set-variables-with-place_variables)
   - [Spawn specific items with a "place_item" array](#spawn-specific-items-with-a-place_item-array)
+  - [Place loot](#place-loot)
   - [Set the owner of items in a given area with "faction_owner"](#set-the-owner-of-items-in-a-given-area-with-faction_owner)
   - [Extra map features with specials](#extra-map-features-with-specials)
     - [Place smoke, gas, or blood with "fields"](#place-smoke-gas-or-blood-with-fields)
@@ -457,6 +458,7 @@ Currently the defined flags are as follows:
 - Clearing flags for layered mapgens: see [dedicated section below](#clearing-flags-for-layered-mapgens)
 - `NO_UNDERLYING_ROTATE` The map won't be rotated even if the underlying tile is.
 - `AVOID_CREATURES` If a creature is present, terrain, furniture and traps won't be placed.
+- `SKIP_ON_OPEN_AIR` Furniture placement is skipped silently when the target tile is open air. Useful for mapgens (e.g. map extras) that may run above ground level where many tiles are open air.
 
 ### Clearing flags for layered mapgens
 Some mapgens are intended to be layered on top of existing terrain.  This can be update mapgen,
@@ -730,6 +732,11 @@ Example:
 | custom-flags | (optional) Value: `[ "flag1", "flag2" ]`. Spawn item with specific flags.
 
 The special custom flag "ACTIVATE_ON_PLACE" causes the item to be activated as it is placed.  This is useful to have noisemakers that are already turned on as the avatar approaches.  It can also be used with explosives with a 1 second countdown to have locations explode as the avatar approaches, creating uniquely ruined terrain.
+
+## Place loot
+**DEPRECATED** Do not use for new mapgen!
+
+This is essentially just a way to place item groups. Use `items` instead.
 
 ## Set the owner of items in a given area with "faction_owner"
 **optional** Define an area where mapgen-spawned items will have faction ownership applied
@@ -1591,7 +1598,7 @@ The following are recommended for use when making houses or similar domestic env
 | [`construction_general_palette`](/data/json/mapgen_palettes/construction.json)    | A palette for buildings that are under construction, for a more concrete example of using this palette, look at [house_02](/data/json/mapgen/house/house02.json)
 | [`commercial`](/data/json/mapgen_palettes/commercial.json)  | For having randomized fridges/freezers **You will still need to add the parameters to your own symbols**
 | Any in [basement.json](/data/json/mapgen_palettes/basement.json)   | Palettes for usage within basements
-| [`roof_palette`](/data/json/mapgen_palettes/roof_palette.json)   | Palette that is be used in every roof
+| [`roof_palette`](/data/json/mapgen_palettes/roof_palette.json)   | Palette that is used in every roof
 
 There are many more within [`/data/json/mapgen_palettes`](/data/json/mapgen_palettes/) but these are the most important ones and will be used in many buildings.
 

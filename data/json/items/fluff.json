@@ -1456,17 +1456,14 @@
   {
     "id": "incense",
     "type": "ITEM",
-    "subtypes": [ "AMMO" ],
-    "ammo_type": "incense",
     "category": "other",
     "name": { "str_sp": "incense" },
     "description": "A small rod giving off a nice smell.",
     "weight": "2 g",
-    "volume": "50 ml",
+    "volume": "5 ml",
     "longest_side": "17 cm",
     "price": "10 cent",
     "price_postapoc": "2 cent",
-    "count": 10,
     "material": [ "wood" ],
     "symbol": "i",
     "color": "brown",
@@ -1908,5 +1905,19 @@
     "description": "A handful of dry leaves(?) from an alien plant.  Despite their otherworldly origin, they have very few uses and are thus (almost) only good for burning.",
     "color": "red",
     "symbol": ","
+  },
+  {
+    "type": "ITEM",
+    "id": "waste_electrolyte_slurry",
+    "category": "other",
+    "name": { "str_sp": "Electrolyte Slurry" },
+    "symbol": "o",
+    "color": "cyan",
+    "description": "The leftover remnants of what was inside of a lithium-ion battery.  It has a rainbow sheen, almost like oil resting on water.",
+    "material": [ "acid" ],
+    "volume": "400 ml",
+    "weight": "700 g",
+    "stackable": true,
+    "phase": "liquid"
   }
 ]

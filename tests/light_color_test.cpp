@@ -26,6 +26,9 @@
 #include "vpart_range.h"
 #include "weather_type.h"
 
+static const dimension_id dimension_world_default( "default" );
+static const dimension_id dimension_world_nether( "nether" );
+
 static const field_type_str_id field_fd_test_green_glow( "fd_test_green_glow" );
 static const ter_str_id ter_t_brick_wall( "t_brick_wall" );
 static const ter_str_id ter_t_door_o( "t_door_o" );
@@ -336,7 +339,8 @@ TEST_CASE( "vehicle_cone_light_carries_color", "[light_color]" )
         }
     }
 
-    vehicle *veh = here.add_vehicle( vehicle_prototype_car, veh_pos, 0_degrees, 100, 0 );
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, veh_pos, 0_degrees, 100,
+                                     veh_spawn_status::UNDAMAGED );
     REQUIRE( veh != nullptr );
 
     // Replace one stock headlight with our red test headlight
@@ -537,7 +541,8 @@ TEST_CASE( "capture_golden_values_for_arc_light", "[.][golden_arc_capture]" )
         }
     }
 
-    vehicle *veh = here.add_vehicle( vehicle_prototype_car, veh_pos, 0_degrees, 100, 0 );
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, veh_pos, 0_degrees, 100,
+                                     veh_spawn_status::UNDAMAGED );
     REQUIRE( veh != nullptr );
 
     std::vector<point_rel_ms> hl_mounts;
@@ -637,7 +642,8 @@ TEST_CASE( "colored_vehicle_cone_sets_has_colored_lights", "[light_color]" )
         }
     }
 
-    vehicle *veh = here.add_vehicle( vehicle_prototype_car, veh_pos, 0_degrees, 100, 0 );
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, veh_pos, 0_degrees, 100,
+                                     veh_spawn_status::UNDAMAGED );
     REQUIRE( veh != nullptr );
 
     // Replace one stock headlight with our red test headlight
@@ -712,7 +718,8 @@ TEST_CASE( "fused_arc_color_output_matches_golden_values", "[light_color]" )
         }
     }
 
-    vehicle *veh = here.add_vehicle( vehicle_prototype_car, veh_pos, 0_degrees, 100, 0 );
+    vehicle *veh = here.add_vehicle( vehicle_prototype_car, veh_pos, 0_degrees, 100,
+                                     veh_spawn_status::UNDAMAGED );
     REQUIRE( veh != nullptr );
 
     std::vector<point_rel_ms> hl_mounts;
@@ -944,11 +951,11 @@ TEST_CASE( "no_dawn_dusk_tint_in_alternate_dimension", "[light_color][dawn_dusk]
     g->reset_light_level();
 
     // Default dimension: should produce tint
-    const light_color_rgb default_dim = dawn_dusk_color_for_lightmap( "" );
+    const light_color_rgb default_dim = dawn_dusk_color_for_lightmap( dimension_world_default );
     CHECK( default_dim.is_colored() );
     CHECK( default_dim.r > 0.0f );
 
     // Alternate dimension: no tint
-    const light_color_rgb nether = dawn_dusk_color_for_lightmap( "nether" );
+    const light_color_rgb nether = dawn_dusk_color_for_lightmap( dimension_world_nether );
     CHECK_FALSE( nether.is_colored() );
 }

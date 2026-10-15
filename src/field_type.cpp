@@ -13,6 +13,10 @@ const field_type_str_id fd_acid( "fd_acid" );
 const field_type_str_id fd_acid_vent( "fd_acid_vent" );
 const field_type_str_id fd_bile( "fd_bile" );
 const field_type_str_id fd_blood( "fd_blood" );
+const field_type_str_id fd_blood_footprint_e( "fd_blood_footprint_e" );
+const field_type_str_id fd_blood_footprint_n( "fd_blood_footprint_n" );
+const field_type_str_id fd_blood_footprint_s( "fd_blood_footprint_s" );
+const field_type_str_id fd_blood_footprint_w( "fd_blood_footprint_w" );
 const field_type_str_id fd_blood_insect( "fd_blood_insect" );
 const field_type_str_id fd_blood_invertebrate( "fd_blood_invertebrate" );
 const field_type_str_id fd_blood_veggy( "fd_blood_veggy" );
@@ -292,6 +296,7 @@ void field_type::load( const JsonObject &jo, std::string_view )
     field_types::load_immunity( jid, immunity_data );
 
     optional( jo, was_loaded, "immune_mtypes", immune_mtypes );
+    optional( jo, was_loaded, "block_mtypes", block_mtypes );
     optional( jo, was_loaded, "underwater_age_speedup", underwater_age_speedup, 0_turns );
     optional( jo, was_loaded, "outdoor_age_speedup", outdoor_age_speedup, 0_turns );
     optional( jo, was_loaded, "decay_amount_factor", decay_amount_factor, 0 );
@@ -355,6 +360,12 @@ void field_type::finalize()
     for( const mtype_id &m_id : immune_mtypes ) {
         if( !m_id.is_valid() ) {
             debugmsg( "Invalid mtype_id %s in immune_mtypes for field %s.", m_id.c_str(), id.c_str() );
+        }
+    }
+
+    for( const mtype_id &m_id : block_mtypes ) {
+        if( !m_id.is_valid() ) {
+            debugmsg( "Invalid mtype_id %s in block_mtypes for field %s.", m_id.c_str(), id.c_str() );
         }
     }
 

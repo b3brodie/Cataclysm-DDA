@@ -218,7 +218,8 @@
       { "item": "rope_30", "prob": 50 },
       { "item": "pliers", "prob": 50 },
       { "group": "new_laptops", "prob": 70 },
-      { "item": "cable", "prob": 40 },
+      { "group": "cable_roll_part", "prob": 40 },
+      { "group": "copper_wire_roll_part", "prob": 30 },
       { "item": "manual_traps_mil", "prob": 80 },
       { "group": "gear_eod_light_or_heavy", "prob": 100 }
     ]
@@ -267,6 +268,7 @@
     "id": "fireman_gear",
     "items": [
       { "item": "extinguisher", "prob": 10, "charges": 100 },
+      { "item": "firefighter_scba_tank", "prob": 60, "charges": 30 },
       { "item": "sm_extinguisher", "prob": 20, "charges": 10 },
       [ "fire_ax", 60 ],
       [ "halligan", 50 ],
@@ -364,6 +366,7 @@
       { "item": "wetsuit_gloves", "prob": 70 },
       { "item": "wetsuit_booties", "prob": 70 },
       { "item": "swim_fins", "prob": 100 },
+      { "item": "scuba_regulator", "prob": 60 },
       {
         "distribution": [ { "item": "airspeargun", "prob": 20 }, { "item": "doublespeargun", "prob": 10 }, { "item": "speargun", "prob": 40 } ],
         "prob": 65

@@ -604,7 +604,25 @@
       },
       {
         "material": [ { "type": "mut_fur", "covered_by_mat": 100, "thickness": 6 } ],
-        "covers": [ "hand_l", "hand_r", "foot_l", "foot_r", "head" ],
+        "covers": [
+          "hand_l",
+          "hand_r",
+          "paw_broad_l",
+          "paw_broad_r",
+          "paw_l",
+          "paw_r",
+          "paw_rat_l",
+          "paw_rat_r",
+          "paw_little_l",
+          "paw_little_r",
+          "foot_l",
+          "foot_r",
+          "avian_talon_l",
+          "avian_talon_r",
+          "animal_paw_l",
+          "animal_paw_r",
+          "head"
+        ],
         "coverage": 100,
         "encumbrance": 1
       },
@@ -642,7 +660,25 @@
       },
       {
         "material": [ { "type": "mut_fur", "covered_by_mat": 100, "thickness": 4 } ],
-        "covers": [ "hand_l", "hand_r", "foot_l", "foot_r", "avian_talon_l", "avian_talon_r", "animal_paw_l", "animal_paw_r", "head" ],
+        "covers": [
+          "hand_l",
+          "hand_r",
+          "paw_broad_l",
+          "paw_broad_r",
+          "paw_l",
+          "paw_r",
+          "paw_rat_l",
+          "paw_rat_r",
+          "paw_little_l",
+          "paw_little_r",
+          "foot_l",
+          "foot_r",
+          "avian_talon_l",
+          "avian_talon_r",
+          "animal_paw_l",
+          "animal_paw_r",
+          "head"
+        ],
         "coverage": 100,
         "encumbrance": 1
       },
@@ -994,15 +1030,17 @@
     "symbol": ";",
     "color": "dark_gray",
     "warmth": 2,
-    "flags": [ "INTEGRATED", "ALLOWS_NATURAL_ATTACKS", "UNBREAKABLE", "SKINTIGHT", "PADDED", "NO_SALVAGE" ],
+    "techniques": [ "FANGS_SPIDER_BITE", "FANGS_BITE_NATURAL", "FANGS_BITE_CRIT" ],
+    "flags": [ "INTEGRATED", "PROVIDES_TECHNIQUES", "ALLOWS_NATURAL_ATTACKS", "UNBREAKABLE", "SKINTIGHT", "PADDED", "NO_SALVAGE" ],
     "armor": [
       {
         "material": [ { "type": "chitin", "covered_by_mat": 100, "thickness": 3 } ],
         "covers": [ "mouth" ],
         "coverage": 40,
-        "encumbrance": 3
+        "encumbrance": 0
       }
-    ]
+    ],
+    "melee_damage": { "stab": 12 }
   },
   {
     "id": "integrated_fangs_spider",
@@ -1019,15 +1057,17 @@
     "symbol": ";",
     "color": "brown",
     "warmth": 2,
-    "flags": [ "INTEGRATED", "ALLOWS_NATURAL_ATTACKS", "UNBREAKABLE", "PERSONAL", "WATER_FRIENDLY", "PADDED" ],
+    "techniques": [ "FANGS_SPIDER_BITE", "FANGS_BITE_NATURAL", "FANGS_BITE_CRIT" ],
+    "flags": [ "INTEGRATED", "PROVIDES_TECHNIQUES", "ALLOWS_NATURAL_ATTACKS", "UNBREAKABLE", "PERSONAL", "WATER_FRIENDLY", "PADDED" ],
     "armor": [
       {
         "material": [ { "type": "sclerotin", "covered_by_mat": 100, "thickness": 3 } ],
         "covers": [ "mouth" ],
         "coverage": 40,
-        "encumbrance": 5
+        "encumbrance": 0
       }
-    ]
+    ],
+    "melee_damage": { "stab": 15 }
   },
   {
     "id": "integrated_chitin",
@@ -1082,9 +1122,9 @@
       },
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 2.5 } ],
-        "covers": [ "mouth" ],
+        "covers": [ "mouth", "muzzle" ],
         "coverage": 85,
-        "encumbrance": 1
+        "encumbrance": 0
       }
     ]
   },
@@ -1119,7 +1159,7 @@
     "armor": [
       {
         "material": [ { "type": "chitin", "covered_by_mat": 100, "thickness": 2.8 } ],
-        "covers": [ "head" ],
+        "covers": [ "head", "head_dragonfly" ],
         "coverage": 95,
         "encumbrance": 5
       },
@@ -1131,7 +1171,22 @@
       },
       {
         "material": [ { "type": "chitin", "covered_by_mat": 100, "thickness": 3.2 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
         "specifically_covers": [
           "arm_upper_l",
           "arm_lower_l",
@@ -1140,15 +1195,61 @@
           "arm_insect_upper_l",
           "arm_insect_lower_l",
           "arm_insect_upper_r",
-          "arm_insect_lower_r"
+          "arm_insect_lower_r",
+          "arm_arachnid_upper_upper_l",
+          "arm_arachnid_upper_lower_l",
+          "arm_arachnid_upper_upper_r",
+          "arm_arachnid_upper_lower_r",
+          "arm_arachnid_lower_upper_l",
+          "arm_arachnid_lower_lower_l",
+          "arm_arachnid_lower_upper_r",
+          "arm_arachnid_lower_lower_r",
+          "arm_arachnid_ok_upper_upper_l",
+          "arm_arachnid_ok_upper_lower_l",
+          "arm_arachnid_ok_upper_upper_r",
+          "arm_arachnid_ok_upper_lower_r",
+          "arm_arachnid_ok_lower_upper_l",
+          "arm_arachnid_ok_lower_lower_l",
+          "arm_arachnid_ok_lower_upper_r",
+          "arm_arachnid_ok_lower_lower_r"
         ],
         "coverage": 95,
         "encumbrance": 2
       },
       {
         "material": [ { "type": "chitin", "covered_by_mat": 100, "thickness": 3 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
-        "specifically_covers": [ "arm_elbow_l", "arm_shoulder_l", "arm_elbow_r", "arm_shoulder_r", "arm_insect_elbow_l", "arm_insect_elbow_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
+        "specifically_covers": [
+          "arm_elbow_l",
+          "arm_shoulder_l",
+          "arm_elbow_r",
+          "arm_shoulder_r",
+          "arm_insect_elbow_l",
+          "arm_insect_elbow_r",
+          "arm_arachnid_upper_elbow_l",
+          "arm_arachnid_upper_elbow_r",
+          "arm_arachnid_lower_elbow_l",
+          "arm_arachnid_lower_elbow_r",
+          "arm_arachnid_ok_upper_elbow_l",
+          "arm_arachnid_ok_upper_elbow_r",
+          "arm_arachnid_ok_lower_elbow_l",
+          "arm_arachnid_ok_lower_elbow_r"
+        ],
         "coverage": 95,
         "encumbrance": 3
       },
@@ -1215,7 +1316,7 @@
     "armor": [
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 1.4 } ],
-        "covers": [ "head" ],
+        "covers": [ "head", "head_dragonfly" ],
         "coverage": 95,
         "encumbrance": 3
       },
@@ -1227,7 +1328,22 @@
       },
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 1.6 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
         "specifically_covers": [
           "arm_upper_l",
           "arm_lower_l",
@@ -1236,15 +1352,61 @@
           "arm_insect_upper_l",
           "arm_insect_lower_l",
           "arm_insect_upper_r",
-          "arm_insect_lower_r"
+          "arm_insect_lower_r",
+          "arm_arachnid_upper_upper_l",
+          "arm_arachnid_upper_lower_l",
+          "arm_arachnid_upper_upper_r",
+          "arm_arachnid_upper_lower_r",
+          "arm_arachnid_lower_upper_l",
+          "arm_arachnid_lower_lower_l",
+          "arm_arachnid_lower_upper_r",
+          "arm_arachnid_lower_lower_r",
+          "arm_arachnid_ok_upper_upper_l",
+          "arm_arachnid_ok_upper_lower_l",
+          "arm_arachnid_ok_upper_upper_r",
+          "arm_arachnid_ok_upper_lower_r",
+          "arm_arachnid_ok_lower_upper_l",
+          "arm_arachnid_ok_lower_lower_l",
+          "arm_arachnid_ok_lower_upper_r",
+          "arm_arachnid_ok_lower_lower_r"
         ],
         "coverage": 95,
         "encumbrance": 1
       },
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 1.5 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
-        "specifically_covers": [ "arm_elbow_l", "arm_shoulder_l", "arm_elbow_r", "arm_shoulder_r", "arm_insect_elbow_l", "arm_insect_elbow_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
+        "specifically_covers": [
+          "arm_elbow_l",
+          "arm_shoulder_l",
+          "arm_elbow_r",
+          "arm_shoulder_r",
+          "arm_insect_elbow_l",
+          "arm_insect_elbow_r",
+          "arm_arachnid_upper_elbow_l",
+          "arm_arachnid_upper_elbow_r",
+          "arm_arachnid_lower_elbow_l",
+          "arm_arachnid_lower_elbow_r",
+          "arm_arachnid_ok_upper_elbow_l",
+          "arm_arachnid_ok_upper_elbow_r",
+          "arm_arachnid_ok_lower_elbow_l",
+          "arm_arachnid_ok_lower_elbow_r"
+        ],
         "coverage": 95,
         "encumbrance": 2
       },
@@ -1311,7 +1473,7 @@
     "armor": [
       {
         "material": [ { "type": "sclerotin", "covered_by_mat": 100, "thickness": 4 } ],
-        "covers": [ "head" ],
+        "covers": [ "head", "head_dragonfly" ],
         "coverage": 95,
         "encumbrance": 12
       },
@@ -1323,7 +1485,22 @@
       },
       {
         "material": [ { "type": "sclerotin", "covered_by_mat": 100, "thickness": 4.6 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
         "specifically_covers": [
           "arm_upper_l",
           "arm_lower_l",
@@ -1332,15 +1509,61 @@
           "arm_insect_upper_l",
           "arm_insect_lower_l",
           "arm_insect_upper_r",
-          "arm_insect_lower_r"
+          "arm_insect_lower_r",
+          "arm_arachnid_upper_upper_l",
+          "arm_arachnid_upper_lower_l",
+          "arm_arachnid_upper_upper_r",
+          "arm_arachnid_upper_lower_r",
+          "arm_arachnid_lower_upper_l",
+          "arm_arachnid_lower_lower_l",
+          "arm_arachnid_lower_upper_r",
+          "arm_arachnid_lower_lower_r",
+          "arm_arachnid_ok_upper_upper_l",
+          "arm_arachnid_ok_upper_lower_l",
+          "arm_arachnid_ok_upper_upper_r",
+          "arm_arachnid_ok_upper_lower_r",
+          "arm_arachnid_ok_lower_upper_l",
+          "arm_arachnid_ok_lower_lower_l",
+          "arm_arachnid_ok_lower_upper_r",
+          "arm_arachnid_ok_lower_lower_r"
         ],
         "coverage": 100,
         "encumbrance": 5
       },
       {
         "material": [ { "type": "sclerotin", "covered_by_mat": 100, "thickness": 4.4 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
-        "specifically_covers": [ "arm_elbow_l", "arm_shoulder_l", "arm_elbow_r", "arm_shoulder_r", "arm_insect_elbow_l", "arm_insect_elbow_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
+        "specifically_covers": [
+          "arm_elbow_l",
+          "arm_shoulder_l",
+          "arm_elbow_r",
+          "arm_shoulder_r",
+          "arm_insect_elbow_l",
+          "arm_insect_elbow_r",
+          "arm_arachnid_upper_elbow_l",
+          "arm_arachnid_upper_elbow_r",
+          "arm_arachnid_lower_elbow_l",
+          "arm_arachnid_lower_elbow_r",
+          "arm_arachnid_ok_upper_elbow_l",
+          "arm_arachnid_ok_upper_elbow_r",
+          "arm_arachnid_ok_lower_elbow_l",
+          "arm_arachnid_ok_lower_elbow_r"
+        ],
         "coverage": 90,
         "encumbrance": 7
       },
@@ -1386,7 +1609,7 @@
     "armor": [
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 2 } ],
-        "covers": [ "head" ],
+        "covers": [ "head", "head_dragonfly" ],
         "coverage": 95,
         "encumbrance": 9
       },
@@ -1398,7 +1621,22 @@
       },
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 2.3 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
         "specifically_covers": [
           "arm_upper_l",
           "arm_lower_l",
@@ -1407,15 +1645,61 @@
           "arm_insect_upper_l",
           "arm_insect_lower_l",
           "arm_insect_upper_r",
-          "arm_insect_lower_r"
+          "arm_insect_lower_r",
+          "arm_arachnid_upper_upper_l",
+          "arm_arachnid_upper_lower_l",
+          "arm_arachnid_upper_upper_r",
+          "arm_arachnid_upper_lower_r",
+          "arm_arachnid_lower_upper_l",
+          "arm_arachnid_lower_lower_l",
+          "arm_arachnid_lower_upper_r",
+          "arm_arachnid_lower_lower_r",
+          "arm_arachnid_ok_upper_upper_l",
+          "arm_arachnid_ok_upper_lower_l",
+          "arm_arachnid_ok_upper_upper_r",
+          "arm_arachnid_ok_upper_lower_r",
+          "arm_arachnid_ok_lower_upper_l",
+          "arm_arachnid_ok_lower_lower_l",
+          "arm_arachnid_ok_lower_upper_r",
+          "arm_arachnid_ok_lower_lower_r"
         ],
         "coverage": 100,
         "encumbrance": 4
       },
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 2.2 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
-        "specifically_covers": [ "arm_elbow_l", "arm_shoulder_l", "arm_elbow_r", "arm_shoulder_r", "arm_insect_elbow_l", "arm_insect_elbow_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
+        "specifically_covers": [
+          "arm_elbow_l",
+          "arm_shoulder_l",
+          "arm_elbow_r",
+          "arm_shoulder_r",
+          "arm_insect_elbow_l",
+          "arm_insect_elbow_r",
+          "arm_arachnid_upper_elbow_l",
+          "arm_arachnid_upper_elbow_r",
+          "arm_arachnid_lower_elbow_l",
+          "arm_arachnid_lower_elbow_r",
+          "arm_arachnid_ok_upper_elbow_l",
+          "arm_arachnid_ok_upper_elbow_r",
+          "arm_arachnid_ok_lower_elbow_l",
+          "arm_arachnid_ok_lower_elbow_r"
+        ],
         "coverage": 90,
         "encumbrance": 5
       },
@@ -1500,7 +1784,7 @@
     "armor": [
       {
         "material": [ { "type": "sclerotin", "covered_by_mat": 100, "thickness": 4.5 } ],
-        "covers": [ "head" ],
+        "covers": [ "head", "head_dragonfly" ],
         "coverage": 95,
         "encumbrance": 15
       },
@@ -1528,8 +1812,38 @@
       },
       {
         "material": [ { "type": "sclerotin", "covered_by_mat": 100, "thickness": 4.9 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
-        "specifically_covers": [ "arm_elbow_l", "arm_shoulder_l", "arm_elbow_r", "arm_shoulder_r", "arm_insect_elbow_l", "arm_insect_elbow_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
+        "specifically_covers": [
+          "arm_elbow_l",
+          "arm_shoulder_l",
+          "arm_elbow_r",
+          "arm_shoulder_r",
+          "arm_insect_elbow_l",
+          "arm_insect_elbow_r",
+          "arm_arachnid_upper_elbow_l",
+          "arm_arachnid_upper_elbow_r",
+          "arm_arachnid_lower_elbow_l",
+          "arm_arachnid_lower_elbow_r",
+          "arm_arachnid_ok_upper_elbow_l",
+          "arm_arachnid_ok_upper_elbow_r",
+          "arm_arachnid_ok_lower_elbow_l",
+          "arm_arachnid_ok_lower_elbow_r"
+        ],
         "coverage": 90,
         "encumbrance": 9
       },
@@ -1586,7 +1900,7 @@
     "armor": [
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 2.2 } ],
-        "covers": [ "head" ],
+        "covers": [ "head", "head_dragonfly" ],
         "coverage": 95,
         "encumbrance": 10
       },
@@ -1598,7 +1912,22 @@
       },
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 2.5 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
         "specifically_covers": [
           "arm_upper_l",
           "arm_lower_l",
@@ -1607,15 +1936,61 @@
           "arm_insect_upper_l",
           "arm_insect_lower_l",
           "arm_insect_upper_r",
-          "arm_insect_lower_r"
+          "arm_insect_lower_r",
+          "arm_arachnid_upper_upper_l",
+          "arm_arachnid_upper_lower_l",
+          "arm_arachnid_upper_upper_r",
+          "arm_arachnid_upper_lower_r",
+          "arm_arachnid_lower_upper_l",
+          "arm_arachnid_lower_lower_l",
+          "arm_arachnid_lower_upper_r",
+          "arm_arachnid_lower_lower_r",
+          "arm_arachnid_ok_upper_upper_l",
+          "arm_arachnid_ok_upper_lower_l",
+          "arm_arachnid_ok_upper_upper_r",
+          "arm_arachnid_ok_upper_lower_r",
+          "arm_arachnid_ok_lower_upper_l",
+          "arm_arachnid_ok_lower_lower_l",
+          "arm_arachnid_ok_lower_upper_r",
+          "arm_arachnid_ok_lower_lower_r"
         ],
         "coverage": 100,
         "encumbrance": 5
       },
       {
         "material": [ { "type": "leather_arthropod", "covered_by_mat": 100, "thickness": 2.4 } ],
-        "covers": [ "arm_l", "arm_r", "arm_insect_l", "arm_insect_r", "arm_insect_good_l", "arm_insect_good_r" ],
-        "specifically_covers": [ "arm_elbow_l", "arm_shoulder_l", "arm_elbow_r", "arm_shoulder_r", "arm_insect_elbow_l", "arm_insect_elbow_r" ],
+        "covers": [
+          "arm_l",
+          "arm_r",
+          "arm_insect_l",
+          "arm_insect_r",
+          "arm_insect_good_l",
+          "arm_insect_good_r",
+          "arm_arachnid_upper_l",
+          "arm_arachnid_upper_r",
+          "arm_arachnid_lower_l",
+          "arm_arachnid_lower_r",
+          "arm_arachnid_ok_upper_l",
+          "arm_arachnid_ok_upper_r",
+          "arm_arachnid_ok_lower_l",
+          "arm_arachnid_ok_lower_r"
+        ],
+        "specifically_covers": [
+          "arm_elbow_l",
+          "arm_shoulder_l",
+          "arm_elbow_r",
+          "arm_shoulder_r",
+          "arm_insect_elbow_l",
+          "arm_insect_elbow_r",
+          "arm_arachnid_upper_elbow_l",
+          "arm_arachnid_upper_elbow_r",
+          "arm_arachnid_lower_elbow_l",
+          "arm_arachnid_lower_elbow_r",
+          "arm_arachnid_ok_upper_elbow_l",
+          "arm_arachnid_ok_upper_elbow_r",
+          "arm_arachnid_ok_lower_elbow_l",
+          "arm_arachnid_ok_lower_elbow_r"
+        ],
         "coverage": 90,
         "encumbrance": 6
       },
@@ -2056,8 +2431,8 @@
     "armor": [
       {
         "material": [ { "type": "chitin", "covered_by_mat": 100, "thickness": 3 } ],
-        "covers": [ "hand_l", "hand_r" ],
-        "specifically_covers": [ "hand_fingers_l", "hand_fingers_r" ],
+        "covers": [ "hand_l", "hand_r", "paw_default_l", "paw_default_r" ],
+        "specifically_covers": [ "hand_fingers_l", "hand_fingers_r", "paw_default_fingers_l", "paw_default_fingers_r" ],
         "coverage": 10,
         "encumbrance": 1
       }
@@ -2083,8 +2458,8 @@
     "armor": [
       {
         "material": [ { "type": "chitin", "covered_by_mat": 100, "thickness": 3 } ],
-        "covers": [ "hand_l", "hand_r" ],
-        "specifically_covers": [ "hand_fingers_l", "hand_fingers_r" ],
+        "covers": [ "hand_l", "hand_r", "paw_default_l", "paw_default_r" ],
+        "specifically_covers": [ "hand_fingers_l", "hand_fingers_r", "paw_default_fingers_l", "paw_default_fingers_r" ],
         "coverage": 20,
         "encumbrance": 3
       }
@@ -2110,8 +2485,8 @@
     "armor": [
       {
         "material": [ { "type": "chitin", "covered_by_mat": 100, "thickness": 3 } ],
-        "covers": [ "hand_l", "hand_r" ],
-        "specifically_covers": [ "hand_fingers_l", "hand_fingers_r" ],
+        "covers": [ "hand_l", "hand_r", "paw_default_l", "paw_default_r" ],
+        "specifically_covers": [ "hand_fingers_l", "hand_fingers_r", "paw_default_fingers_l", "paw_default_fingers_r" ],
         "coverage": 40,
         "encumbrance": 5
       }
@@ -2165,8 +2540,8 @@
     "armor": [
       {
         "material": [ { "type": "bone", "covered_by_mat": 100, "thickness": 3.2 } ],
-        "covers": [ "mouth" ],
-        "specifically_covers": [ "mouth_lips" ],
+        "covers": [ "mouth", "muzzle" ],
+        "specifically_covers": [ "mouth_lips", "muzzle_lips" ],
         "coverage": 100,
         "encumbrance": 0
       }
@@ -2193,8 +2568,8 @@
     "armor": [
       {
         "material": [ { "type": "bone", "covered_by_mat": 100, "thickness": 3.2 } ],
-        "covers": [ "mouth" ],
-        "specifically_covers": [ "mouth_lips" ],
+        "covers": [ "mouth", "muzzle" ],
+        "specifically_covers": [ "mouth_lips", "muzzle_lips" ],
         "coverage": 100,
         "encumbrance": 0
       }
@@ -2221,8 +2596,8 @@
     "armor": [
       {
         "material": [ { "type": "bone", "covered_by_mat": 100, "thickness": 3.2 } ],
-        "covers": [ "mouth" ],
-        "specifically_covers": [ "mouth_lips" ],
+        "covers": [ "mouth", "muzzle" ],
+        "specifically_covers": [ "mouth_lips", "muzzle_lips" ],
         "coverage": 100,
         "encumbrance": 0
       }
@@ -2250,8 +2625,8 @@
     "armor": [
       {
         "material": [ { "type": "bone", "covered_by_mat": 100, "thickness": 3.2 } ],
-        "covers": [ "mouth" ],
-        "specifically_covers": [ "mouth_lips" ],
+        "covers": [ "mouth", "muzzle" ],
+        "specifically_covers": [ "mouth_lips", "muzzle_lips" ],
         "coverage": 100,
         "encumbrance": 0
       }
@@ -2393,224 +2768,12 @@
     "melee_damage": { "bash": 6 }
   },
   {
-    "id": "integrated_bio_robofac_xmleg",
-    "type": "ITEM",
-    "subtypes": [ "ARMOR", "TOOL", "ARTIFACT" ],
-    "category": "armor",
-    "name": { "str_sp": "Hub 01 XM-LEG (off)" },
-    "description": "The Hub 01 Lower Extremity Gaitframe, or LEG, a powered exoskeleton for the true frontier cyborg.  A metal frame runs along each of your legs, with anchoring pins implanted deep into the sides of your hips, femurs, and knees, twisting at the lower leg into a metal plate with pins anchored to your shin bones.  Inside are various anchors and electronic interfaces for your muscles, connective tissues, and neurobionic interface.  The frame covering the knee and lower leg has clips custom-fit for Hub 01 greaves, and there is a hip-mounted battery compartment.  When powered, you can move 15% faster, traverse obstacles with 50% higher efficiency, and carry 20kg of extra weight.  Unpowered, they are a significant burden.  Activate them to toggle power.",
-    "weight": "1600 g",
-    "volume": "5000 ml",
-    "price": "0 cent",
-    "price_postapoc": "0 cent",
-    "material": [ "qt_steel" ],
-    "symbol": ",",
-    "color": "dark_gray",
-    "material_thickness": 4,
-    "environmental_protection": 0,
-    "warmth": 5,
-    "flags": [
-      "SKINTIGHT",
-      "INTEGRATED",
-      "CAN_USE_IN_DARK",
-      "NO_REPAIR",
-      "NANOFAB_REPAIR",
-      "COMBAT_TOGGLEABLE",
-      "STURDY",
-      "WATER_FRIENDLY",
-      "MUNDANE",
-      "PADDED",
-      "TRADER_AVOID"
-    ],
-    "pocket_data": [
-      {
-        "pocket_type": "CONTAINER",
-        "ablative": true,
-        "volume_encumber_modifier": 0,
-        "max_contains_volume": "5000 ml",
-        "max_contains_weight": "3 kg",
-        "moves": 200,
-        "description": "Clips for armored greaves.",
-        "item_restriction": [
-          "robofac_basic_greaves",
-          "robofac_rubber_greaves",
-          "robofac_nomex_greaves",
-          "robofac_kevlar_greaves",
-          "robofac_military_greaves"
-        ]
-      },
-      {
-        "pocket_type": "MAGAZINE_WELL",
-        "rigid": true,
-        "flag_restriction": [ "BATTERY_HEAVY" ],
-        "default_magazine": "heavy_battery_cell"
-      }
-    ],
-    "armor": [ { "encumbrance": 40, "coverage": 5, "covers": [ "leg_l", "leg_r" ] } ],
-    "use_action": [
-      { "type": "transform", "msg": "You activate your Hub 01 XM-LEG system.", "target": "integrated_bio_robofac_xmleg_on" }
-    ],
-    "passive_effects": [ { "id": "robofac_XM_LEG_on" } ],
-    "tool_ammo": [ "battery" ]
-  },
-  {
-    "id": "integrated_bio_robofac_xmleg_on",
-    "copy-from": "integrated_bio_robofac_xmleg",
-    "type": "ITEM",
-    "subtypes": [ "ARMOR", "TOOL", "ARTIFACT" ],
-    "category": "armor",
-    "name": { "str_sp": "Hub 01 XM-LEG (on)" },
-    "extend": { "flags": [ "SPAWN_ACTIVE" ] },
-    "armor": [ { "encumbrance": 0, "coverage": 5, "covers": [ "leg_l", "leg_r" ] } ],
-    "use_action": [
-      { "type": "transform", "msg": "You deactivate your Hub 01 XM-LEG system.", "target": "integrated_bio_robofac_xmleg" }
-    ],
-    "power_draw": "37 W",
-    "revert_to": "integrated_bio_robofac_xmleg"
-  },
-  {
-    "id": "integrated_bio_robofac_xmarm",
-    "type": "ITEM",
-    "subtypes": [ "ARMOR", "TOOL", "ARTIFACT" ],
-    "category": "armor",
-    "name": { "str_sp": "Hub 01 XM-ARM (off)" },
-    "description": "The Hub 01 Arm Reinforcement Motionframe, or ARM, a powered exoskeleton for the true frontier cyborg.  A metal frame runs along each of your arms and hands, with anchoring pins implanted deep into your joints and bones, twisting at the wrist into a thin, glove-like matrix of implanted steel.  Inside are various anchors and electronic interfaces for your muscles, connective tissues, and neurobionic interface.  The frame has a battery compartment and the elbows and lower arms have clips custom-fit for Hub 01 vambraces.  When powered, your arms are exceptionally stable, reducing firearm recoil by 30% and shot dispersion by 10%.  Moreover, you have better control over thrown objects, allowing you to throw objects 50% further and 25% harder.  Unpowered, they are a significant burden.  Activate them to toggle power.",
-    "weight": "1600 g",
-    "volume": "5000 ml",
-    "price": "0 cent",
-    "price_postapoc": "0 cent",
-    "material": [ "qt_steel" ],
-    "symbol": ",",
-    "color": "dark_gray",
-    "material_thickness": 4,
-    "environmental_protection": 0,
-    "warmth": 5,
-    "flags": [
-      "SKINTIGHT",
-      "INTEGRATED",
-      "CAN_USE_IN_DARK",
-      "NO_REPAIR",
-      "NANOFAB_REPAIR",
-      "COMBAT_TOGGLEABLE",
-      "STURDY",
-      "WATER_FRIENDLY",
-      "MUNDANE",
-      "PADDED",
-      "TRADER_AVOID"
-    ],
-    "pocket_data": [
-      {
-        "pocket_type": "CONTAINER",
-        "ablative": true,
-        "volume_encumber_modifier": 0,
-        "max_contains_volume": "5000 ml",
-        "max_contains_weight": "3 kg",
-        "moves": 200,
-        "description": "Clips for armored vambraces.",
-        "item_restriction": [
-          "robofac_basic_vambraces",
-          "robofac_rubber_vambraces",
-          "robofac_nomex_vambraces",
-          "robofac_kevlar_vambraces",
-          "robofac_military_vambraces"
-        ]
-      },
-      {
-        "pocket_type": "MAGAZINE_WELL",
-        "rigid": true,
-        "flag_restriction": [ "BATTERY_HEAVY" ],
-        "default_magazine": "heavy_battery_cell"
-      }
-    ],
-    "armor": [ { "encumbrance": 40, "coverage": 5, "covers": [ "arm_l", "arm_r", "hand_l", "hand_r" ] } ],
-    "use_action": [
-      { "type": "transform", "msg": "You activate your Hub 01 XM-ARM system.", "target": "integrated_bio_robofac_xmarm_on" }
-    ],
-    "passive_effects": [ { "id": "robofac_XM_ARM_on" } ],
-    "tool_ammo": [ "battery" ]
-  },
-  {
-    "id": "integrated_bio_robofac_xmarm_on",
-    "copy-from": "integrated_bio_robofac_xmarm",
-    "type": "ITEM",
-    "subtypes": [ "ARMOR", "TOOL", "ARTIFACT" ],
-    "category": "armor",
-    "name": { "str_sp": "Hub 01 XM-ARM (on)" },
-    "extend": { "flags": [ "SPAWN_ACTIVE" ] },
-    "armor": [ { "encumbrance": 0, "coverage": 5, "covers": [ "arm_l", "arm_r", "hand_l", "hand_r" ] } ],
-    "use_action": [
-      { "type": "transform", "msg": "You deactivate your Hub 01 XM-ARM system.", "target": "integrated_bio_robofac_xmarm" }
-    ],
-    "power_draw": "37 W",
-    "revert_to": "integrated_bio_robofac_xmarm"
-  },
-  {
-    "id": "integrated_bio_robofac_xmback",
-    "type": "ITEM",
-    "subtypes": [ "ARMOR", "TOOL", "ARTIFACT" ],
-    "category": "armor",
-    "name": { "str_sp": "Hub 01 XM-BACK (off)" },
-    "description": "The Hub 01 Biomechanical Assisted Carrying Kinetoframe, or BACK, a powered exoskeleton for the true frontier cyborg.  A metal frame runs along the back of your shoulders, your spine, and upper waist, with anchoring pins implanted deep into your joints and bones.  Inside are various anchors and electronic interfaces for your muscles, connective tissues, and neurobionic interface.  The frame has a battery compartment at the lower back.  When powered, your frame adapts to effectively distribute force, increasing carrying capacity by 35%, and modestly improving your ability to throw and absorb recoil.  Unpowered, it is a significant burden.  Activate it to toggle power.",
-    "weight": "1600 g",
-    "volume": "5000 ml",
-    "price": "0 cent",
-    "price_postapoc": "0 cent",
-    "material": [ "qt_steel" ],
-    "symbol": ",",
-    "color": "dark_gray",
-    "material_thickness": 4,
-    "environmental_protection": 0,
-    "warmth": 5,
-    "flags": [
-      "SKINTIGHT",
-      "INTEGRATED",
-      "CAN_USE_IN_DARK",
-      "NO_REPAIR",
-      "NANOFAB_REPAIR",
-      "COMBAT_TOGGLEABLE",
-      "STURDY",
-      "WATER_FRIENDLY",
-      "MUNDANE",
-      "PADDED",
-      "TRADER_AVOID"
-    ],
-    "pocket_data": [
-      {
-        "pocket_type": "MAGAZINE_WELL",
-        "rigid": true,
-        "flag_restriction": [ "BATTERY_HEAVY" ],
-        "default_magazine": "heavy_battery_cell"
-      }
-    ],
-    "armor": [ { "encumbrance": 40, "coverage": 5, "covers": [ "torso" ] } ],
-    "use_action": [
-      { "type": "transform", "msg": "You activate your Hub 01 XM-BACK system.", "target": "integrated_bio_robofac_xmback_on" }
-    ],
-    "passive_effects": [ { "id": "robofac_XM_BACK_on" } ],
-    "tool_ammo": [ "battery" ]
-  },
-  {
-    "id": "integrated_bio_robofac_xmback_on",
-    "copy-from": "integrated_bio_robofac_xmback",
-    "type": "ITEM",
-    "subtypes": [ "ARMOR", "TOOL", "ARTIFACT" ],
-    "category": "armor",
-    "name": { "str_sp": "Hub 01 XM-BACK (on)" },
-    "extend": { "flags": [ "SPAWN_ACTIVE" ] },
-    "armor": [ { "encumbrance": 0, "coverage": 5, "covers": [ "torso" ] } ],
-    "use_action": [
-      { "type": "transform", "msg": "You deactivate your Hub 01 XM-BACK system.", "target": "integrated_bio_robofac_xmback" }
-    ],
-    "power_draw": "37 W",
-    "revert_to": "integrated_bio_robofac_xmback"
-  },
-  {
     "id": "integrated_interstice_aura",
     "type": "ITEM",
     "subtypes": [ "ARMOR" ],
     "category": "armor",
     "name": { "str_sp": "Penumbral Interstitium" },
-    "description": "Your cells operate under different rules.  While you still need to breath, you are otherwise extremely resistant to the thermal and chemical insults of the so-called universe.",
+    "description": "Your cells operate under different rules.  While you still need to breathe, you are otherwise extremely resistant to the thermal and chemical insults of the so-called universe.",
     "weight": "1 g",
     "volume": "1 ml",
     "price": "0 cent",
@@ -2628,6 +2791,49 @@
         "coverage": 100,
         "encumbrance": 0,
         "breathability": "GOOD"
+      }
+    ]
+  },
+  {
+    "id": "internal_bio_purifier",
+    "type": "ITEM",
+    "subtypes": [ "ARMOR" ],
+    "category": "armor",
+    "name": { "str_sp": "Air Filtration System" },
+    "description": "Surgically implanted in your trachea is an advanced filtration system.  If toxins or airborne diseases find their way into your windpipe, the filter will attempt to remove them.",
+    "weight": "1 g",
+    "volume": "1 ml",
+    "price": "0 cent",
+    "price_postapoc": "0 cent",
+    "material": [ "nanotubes" ],
+    "material_thickness": 0.01,
+    "symbol": "x",
+    "color": "light_red",
+    "warmth": 0,
+    "environmental_protection": 16,
+    "flags": [ "INTEGRATED", "UNBREAKABLE", "PERSONAL" ],
+    "armor": [ { "covers": [ "mouth", "muzzle", "beak" ], "coverage": 100, "encumbrance": 0 } ]
+  },
+  {
+    "id": "item_portal_storm_dimension_returner",
+    "type": "ITEM",
+    "subtypes": [ "ARMOR" ],
+    "category": "armor",
+    "name": { "str_sp": "fragment of reality" },
+    "description": "You can leave this place, if you want.  Focus on the world you left behind in the storm.",
+    "weight": "0 g",
+    "volume": "0 ml",
+    "price": "0 cent",
+    "price_postapoc": "0 cent",
+    "material": [ "bone" ],
+    "symbol": "V",
+    "color": "dark_gray",
+    "flags": [ "INTEGRATED", "ALLOWS_NATURAL_ATTACKS", "UNBREAKABLE", "AURA", "PADDED", "NO_SALVAGE" ],
+    "use_action": [
+      {
+        "type": "effect_on_conditions",
+        "description": "Return.  Return.  Return.  Return.",
+        "effect_on_conditions": [ "EOC_PORTAL_STORM_DUNGEON_DIMENSION_RETURN" ]
       }
     ]
   }

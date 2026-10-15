@@ -10,6 +10,7 @@
 
 #include "map_scale_constants.h"
 #include "point.h"
+#include "type_id.h"
 
 constexpr float LIGHT_SOURCE_LOCAL = 0.1f;
 constexpr float LIGHT_SOURCE_BRIGHT = 10.0f;
@@ -58,9 +59,10 @@ constexpr inline int LIGHT_RANGE( float b )
 // Per-tile accumulated light color energy (float RGB).
 // Stored as raw energy, not display-ready; the renderer converts to uint8.
 struct light_color_rgb {
-    float r = 0.0f;
-    float g = 0.0f;
-    float b = 0.0f;
+    light_color_rgb() = default;
+    float r;
+    float g;
+    float b;
     bool is_colored() const {
         return r > 0.0f || g > 0.0f || b > 0.0f;
     }
@@ -83,10 +85,11 @@ struct light_color_rgb {
     // Create from HSV. h in [0,360), s and v in [0,1].
     static light_color_rgb from_hsv( float h, float s, float v );
 };
+static_assert( std::is_trivially_default_constructible_v<light_color_rgb> );
 
 // Returns the warm dawn/dusk tint color, or empty when not applicable
 // (alternate dimension, outside twilight). Cached per turn.
-light_color_rgb dawn_dusk_color_for_lightmap( std::string_view dimension );
+light_color_rgb dawn_dusk_color_for_lightmap( dimension_id dimension );
 
 enum class lit_level : uint8_t {
     DARK = 0,

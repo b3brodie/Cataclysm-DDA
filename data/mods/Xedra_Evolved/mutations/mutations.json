@@ -33,6 +33,16 @@
   },
   {
     "type": "mutation",
+    "id": "EMPTY_DREAMS",
+    "name": { "str": "Empty Dreams" },
+    "points": -1,
+    "starting_trait": true,
+    "valid": false,
+    "purifiable": false,
+    "description": "What dreams you have are hollow and unfufilling to the fae."
+  },
+  {
+    "type": "mutation",
     "id": "MANIFEST_DESTINY_GOBLIN",
     "name": { "str": "Transforming into Goblin" },
     "points": 0,
@@ -390,6 +400,20 @@
   },
   {
     "type": "mutation",
+    "id": "DHAMPIR_BLACKEN_SOUL_ARION",
+    "name": { "str": "Blacken the Soul of Arion" },
+    "points": 0,
+    "visibility": 0,
+    "ugliness": 0,
+    "description": "You've gained the ability to create and mold a horse into a beast worthy of carrying you across the wastelands.",
+    "starting_trait": false,
+    "purifiable": false,
+    "valid": false,
+    "player_display": false,
+    "spells_learned": [ [ "dhampir_horse_familiar_spell", 1 ] ]
+  },
+  {
+    "type": "mutation",
     "id": "DHAMPIR_WEAKNESS_SUN_SENSITIVITY",
     "name": { "str": "Weakness: Sun Sensitivity" },
     "points": -2,
@@ -514,8 +538,8 @@
     "description": "The vampires are right about one thing; they are better than humans, and your vampire blood makes you better as well.",
     "purifiable": false,
     "valid": false,
-    "enchantments": [ { "mutations": [ "PSYCHOPATH" ] } ],
-    "social_modifiers": { "persuade": -25, "lie": -15 }
+    "social_modifiers": { "persuade": -25, "lie": -15 },
+    "flags": [ "PSYCHOPATH" ]
   },
   {
     "type": "mutation",
@@ -1128,7 +1152,7 @@
     "type": "mutation",
     "id": "VAMPIRE_CARDIO_BONUS",
     "name": { "str": "Incarnadine Energy" },
-    "points": 0,
+    "points": 2,
     "description": "The stolen blood within your body provides you with a fountain of energy.  You gain a bonus to your Cardio rating.",
     "starting_trait": false,
     "purifiable": false,
@@ -1148,7 +1172,7 @@
     "type": "mutation",
     "id": "VAMPIRE_MOTION_ALARM",
     "name": { "str": "Wakeful Slumber" },
-    "points": 0,
+    "points": 2,
     "description": "Your senses are so fine they can alert you to danger even while you slumber.  Activate to cause yourself to wake up if danger approaches while you sleep.",
     "starting_trait": false,
     "purifiable": false,
@@ -1161,7 +1185,7 @@
     "type": "mutation",
     "id": "VAMPIRE_BONUS_HP",
     "name": { "str": "Fortitude of the Damned" },
-    "points": 0,
+    "points": 2,
     "description": "Your flesh is more resilient and you can suffer much more damage than a mortal before expiring.  Your hit points are increased.",
     "starting_trait": false,
     "purifiable": false,
@@ -1266,7 +1290,8 @@
       {
         "ench_effects": [
           { "effect": "effect_vampire_immune_to_classic_zombification", "intensity": 1 },
-          { "effect": "effect_dhampir_corpselike_pallor_pale", "intensity": 1 }
+          { "effect": "effect_dhampir_corpselike_pallor_pale", "intensity": 1 },
+          { "effect": "effect_xe_nonhuman_super_soldier_serum_immune", "intensity": 1 }
         ]
       },
       {
@@ -1293,6 +1318,8 @@
     "purifiable": false,
     "valid": false,
     "name": { "str": "Torpor" },
+    "cancels": [ "NARCOLEPTIC", "INSOMNIA", "HEAVYSLEEPER", "HEAVYSLEEPER2" ],
+    "enchantments": [ { "condition": "ALWAYS", "values": [ { "value": "SLEEPY", "multiply": -1 } ] } ],
     "description": "You can enter a deathlike stake known as torpor, in which your wounds will close faster, your fatigue will fully recover and your blood thirst will be less intense.  Be careful, though, as nothing will be able to wake you up until eight hours have passed.",
     "spells_learned": [ [ "vampire_torpor", 1 ] ]
   },
@@ -1395,7 +1422,15 @@
       { "condition": "u_has_weapon", "values": [ { "value": "MELEE_DAMAGE", "multiply": -1 } ] },
       { "condition": { "u_is_on_terrain": "t_open_air" }, "values": [ { "value": "MOVE_COST", "multiply": -0.6 } ] }
     ],
-    "flags": [ "DRACULIN_VENOM", "LEVITATION", "TEMPORARY_SHAPESHIFT", "SHAPESHIFT_SIZE_TINY", "TEMPORARY_SHAPESHIFT_NO_HANDS" ],
+    "flags": [
+      "DRACULIN_VENOM",
+      "TOUGH_FEET",
+      "MUTE",
+      "LEVITATION",
+      "TEMPORARY_SHAPESHIFT",
+      "SHAPESHIFT_SIZE_TINY",
+      "TEMPORARY_SHAPESHIFT_NO_HANDS"
+    ],
     "override_look": { "id": "mon_bat", "tile_category": "monster" }
   },
   {
@@ -1480,9 +1515,8 @@
     "purifiable": false,
     "valid": false,
     "can_only_eat": [ "blood", "hblood", "fae_blood", "vampire_blood" ],
-    "flags": [ "CANNIBAL", "DAYFEAR", "NO_THIRST", "NO_BODY_HEAT" ],
+    "flags": [ "CANNIBAL", "DAYFEAR", "NO_THIRST", "NO_BODY_HEAT", "CANNOT_CONSUME_DRUGS", "CANNOT_GAIN_WEARINESS" ],
     "vitamin_rates": [ [ "vitC", -500 ], [ "iron", -500 ], [ "calcium", -500 ] ],
-    "//": "When weariness can be modified through Json, this mutation should make the player immune to it.",
     "enchantments": [
       {
         "values": [
@@ -1492,7 +1526,8 @@
           { "value": "VITAMIN_ABSORB_MOD", "multiply": -100 },
           { "value": "HUNGER", "multiply": -1 },
           { "value": "THIRST", "multiply": -1 },
-          { "value": "METABOLISM", "multiply": -1 }
+          { "value": "METABOLISM", "multiply": -1 },
+          { "value": "STAMINA_REGEN_MOD", "multiply": -0.333 }
         ]
       },
       {
@@ -1961,7 +1996,7 @@
     "//2": "This enchantment removes the effect if the vampire is outside at day.",
     "enchantments": [
       {
-        "condition": { "and": [ "is_day", "u_is_outside", { "not": { "is_weather": "blotted_sun " } } ] },
+        "condition": { "and": [ "is_day", "u_is_outside" ] },
         "ench_effects": [ { "effect": "effect_vampire_lose_invisible_in_dark", "intensity": 1 } ]
       }
     ]

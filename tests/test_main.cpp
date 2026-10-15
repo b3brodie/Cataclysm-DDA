@@ -44,6 +44,7 @@
 #include "json.h"
 #include "map.h"
 #include "messages.h"
+#include "mission.h"
 #include "options.h"
 #include "overmap.h"
 #include "overmapbuffer.h"
@@ -155,6 +156,8 @@ static void init_global_game_state( const std::vector<mod_id> &mods,
     g->load_core_data();
     g->load_world_modfiles();
 
+    overmap_buffer.init_region_layout();
+
     get_avatar() = avatar();
     get_avatar().create( character_type::NOW );
     get_avatar().setID( g->assign_npc_id(), false );
@@ -202,6 +205,9 @@ static option_overrides_t extract_option_overrides( const std::string_view optio
     ret.emplace_back( split_pair( part, sep ) );
     return ret;
 }
+
+namespace
+{
 
 struct CataListener : Catch::TestEventListenerBase {
     using TestEventListenerBase::TestEventListenerBase;
@@ -282,6 +288,8 @@ struct CataListener : Catch::TestEventListenerBase {
         }
         // Reset lightweight global state that tests commonly modify without
         // restoring.  Expensive operations like clear_map() stay manual.
+        get_avatar().reset_all_missions();
+        mission::clear_all();
         calendar::turn = calendar::turn_zero;
         weather_manager &weather = get_weather();
         weather.weather_override = WEATHER_NULL; // NOLINT(cata-tests-must-restore-global-state)
@@ -308,6 +316,8 @@ struct CataListener : Catch::TestEventListenerBase {
 
 };
 
+} // namespace
+
 CATCH_REGISTER_LISTENER( CataListener )
 
 // NOLINTNEXTLINE(cata-test-filename)
@@ -317,8 +327,16 @@ TEST_CASE( "noop_test", "[.]" )
 }
 
 
+// NOLINTNEXTLINE(bugprone-exception-escape): test runner intentionally lets exceptions propagate
 int main( int argc, const char *argv[] )
 {
+#ifdef _WIN32
+    // Suppress the "Microsoft Visual C++ Runtime Library" abort dialog so that
+    // a raw assert() in any third-party header (e.g. plf colony/list, flatbuffers)
+    // cannot hang headless CI test runs. The Cataclysm test vcxproj does not
+    // define NDEBUG for Release, so asserts are live in CI binaries.
+    _set_abort_behavior( 0, _CALL_REPORTFAULT | _WRITE_ABORT_MSG );
+#endif
     cata::init_allocator();
 #if defined(_MSC_VER)
     bool supports_color = _isatty( _fileno( stdout ) );
@@ -430,6 +448,10 @@ int main( int argc, const char *argv[] )
     } );
 
     setupDebug( DebugOutput::std_err );
+    // DebugFile is a function-local static; shut it down before global teardown.
+    on_out_of_scope debug_shutdown_guard( []() {
+        deinitDebug();
+    } );
     if( limit_debug_level != -1 ) {
         limitDebugLevel( limit_debug_level );
     }
@@ -517,6 +539,16 @@ int main( int argc, const char *argv[] )
         DebugLog( D_INFO, DC_ALL ) << "Treating result as failure due to error logged during tests.";
         return 1;
     }
+
+#if defined(__MINGW32__)
+    // MinGW static teardown is unreliable after game state cleanup.
+    debug_shutdown_guard.cancel();
+    deinitDebug();
+    std::cout.flush();
+    std::cerr.flush();
+    std::fflush( nullptr );
+    std::_Exit( result );
+#endif
 
     return result;
 }

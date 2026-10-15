@@ -107,6 +107,25 @@ bool has_items_to_sort( Character &you, const tripoint_abs_ms &src,
                         const std::vector<item_location> &other_activity_items,
                         const zone_sorting::zone_items &items, bool *pickup_failure,
                         bool *spillable_skipped = nullptr );
+bool dest_has_capacity( const tripoint_abs_ms &dest, const zone_type_id &ztype,
+                        const item &sample, const faction_id &fac );
+
+// why the carry gate turned an item down. the pickup path reports a knock-down
+// refusal to the player and stays quiet about the others
+enum class carry_gate_result : int {
+    ok = 0,
+    // no pockets, no free hands
+    no_space,
+    // would put the character over max_pickup_capacity
+    knockdown,
+    // would put the character over weight_capacity with a batch staged
+    over_capacity,
+};
+
+// can `you` take `it` into the inventory right now? `have_staged_items` is
+// whether a batch is already waiting for dropoff; the first item of a batch is
+// always allowed, so heavy things can still be sorted one at a time
+carry_gate_result carry_gate_check( Character &you, const item &it, bool have_staged_items );
 bool can_unload( item *it );
 void add_item( const std::optional<vpart_reference> &vp, const tripoint_bub_ms &src_bub,
                const item &it );
@@ -115,7 +134,7 @@ void remove_item( const std::optional<vpart_reference> &vp, const tripoint_bub_m
 std::optional<bool> unload_item( Character &you, const tripoint_abs_ms &src,
                                  zone_sorting::unload_sort_options zone_unload_options,
                                  const std::optional<vpart_reference> &vpr_src,
-                                 item *it, const std::unordered_set<tripoint_abs_ms> &dest_set,
+                                 item_location it, const std::unordered_set<tripoint_abs_ms> &dest_set,
                                  int &num_processed );
 void move_item( Character &you, const std::optional<vpart_reference> &vpr_src,
                 const tripoint_bub_ms &src_bub, const std::unordered_set<tripoint_abs_ms> &dest_set,
@@ -177,11 +196,6 @@ bool activity_reason_quit( do_activity_reason reason );
 // the activity (reason) requires picking up tools
 bool activity_reason_picks_up_tools( do_activity_reason reason );
 void check_npc_revert( Character &you );
-// assigns fetch activity to find requirements
-requirement_check_result fetch_requirements( Character &you, requirement_id what_we_need,
-        const activity_id &act_id,
-        activity_reason_info &act_info, const tripoint_abs_ms &src, const tripoint_bub_ms &src_loc,
-        const std::unordered_set<tripoint_abs_ms> &src_set );
 // converts invalid do_activity_reason into failed requirement_check_result
 requirement_check_result requirement_fail( Character &you, const do_activity_reason &reason,
         const activity_id &act_id, const zone_data *zone );

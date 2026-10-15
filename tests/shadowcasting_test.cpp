@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <functional>
 #include <memory>
-#include <optional>
 #include <random>
 #include <sstream>
 #include <string>
@@ -139,7 +138,7 @@ static bool is_nonzero( const four_quadrants &x )
 }
 
 template<typename Exp>
-bool grids_are_equivalent(
+static bool grids_are_equivalent(
     const cata::mdarray<float, point_bub_ms> &control,
     const cata::mdarray<Exp, point_bub_ms> &experiment )
 {
@@ -156,7 +155,7 @@ bool grids_are_equivalent(
 }
 
 template<typename Exp>
-void print_grid_comparison(
+static void print_grid_comparison(
     const point_bub_ms &offset,
     cata::mdarray<float, point_bub_ms> &transparency_cache,
     const cata::mdarray<float, point_bub_ms> &control,
@@ -514,6 +513,9 @@ static constexpr float X = LIGHT_TRANSPARENCY_SOLID;
 
 static const tripoint_bub_ms ORIGIN( 65, 65, 11 );
 
+namespace
+{
+
 struct grid_overlay {
     std::vector<std::vector<std::vector<float>>> data;
     std::vector<std::vector<std::vector<bool>>> floor;
@@ -568,6 +570,8 @@ struct grid_overlay {
         return default_floor;
     }
 };
+
+} // namespace
 
 static void run_spot_check( const grid_overlay &test_case, const grid_overlay &expected,
                             bool fov_3d )

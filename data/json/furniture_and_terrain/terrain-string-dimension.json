@@ -10,6 +10,39 @@
   },
   {
     "type": "terrain",
+    "id": "t_nl_sd_2d_sky",
+    "name": "flattened sky",
+    "description": "This is the sky, you think.  It is impossibly flattened into two dimensions.",
+    "symbol": " ",
+    "color": "black",
+    "flags": [ "TRANSPARENT", "WALL" ]
+  },
+  {
+    "type": "terrain",
+    "id": "t_nl_sd_2d_sky_walkable",
+    "name": "flattened horizon",
+    "description": "You can stand here, upon the horizon.  It is impossibly flattened into two dimensions.",
+    "symbol": " ",
+    "color": "black",
+    "move_cost": 1,
+    "flags": [ "TRANSPARENT", "FLAT", "ROAD" ]
+  },
+  {
+    "type": "terrain",
+    "id": "t_nl_sd_2d_ground",
+    "looks_like": "t_wall_warped",
+    "name": "flattened ground",
+    "description": "This is the ground, you think.  It is impossibly flattened into two dimensions, and the patterns upon it are constantly shifting, like an image passing through a veined rock, its insides twisting upon the two dimensional projection.",
+    "symbol": "#",
+    "color": "light_gray",
+    "move_cost": 0,
+    "coverage": 100,
+    "connect_groups": "WALL",
+    "connects_to": "WALL",
+    "flags": [ "NOITEM", "SUPPORTS_ROOF", "WALL", "NO_SCENT", "AUTO_WALL_SYMBOL", "BLOCK_WIND", "TRANSPARENT" ]
+  },
+  {
+    "type": "terrain",
     "id": "t_string_true_void",
     "name": "nothing",
     "description": "There's an otherworldly nothing there - a black wall at the front of your senses.",
@@ -67,6 +100,8 @@
     "light_emitted": 20,
     "light_color": [ 255, 0, 255 ],
     "move_cost": 1,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "flags": [ "TRANSPARENT", "FLAT", "ROAD", "ONE_DIMENSIONAL_X" ]
   },
   {
@@ -79,6 +114,8 @@
     "light_emitted": 20,
     "light_color": [ 0, 255, 255 ],
     "move_cost": 1,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "flags": [ "TRANSPARENT", "FLAT", "ROAD", "ONE_DIMENSIONAL_Y" ]
   },
   {
@@ -91,6 +128,8 @@
     "light_emitted": 20,
     "light_color": [ 255, 255, 0 ],
     "move_cost": 1,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "flags": [ "TRANSPARENT", "ONE_DIMENSIONAL_Z", "GOES_DOWN", "GOES_UP" ]
   },
   {
@@ -101,6 +140,8 @@
     "symbol": "+",
     "color": "blue",
     "light_emitted": 20,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "light_color": [ 0, 0, 255 ],
     "move_cost": 1,
     "flags": [ "TRANSPARENT", "FLAT", "ROAD", "ONE_DIMENSIONAL_X", "ONE_DIMENSIONAL_Y" ]
@@ -115,6 +156,8 @@
     "light_emitted": 20,
     "light_color": [ 0, 0, 255 ],
     "move_cost": 1,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "flags": [ "TRANSPARENT", "FLAT", "ROAD", "ONE_DIMENSIONAL_X", "ONE_DIMENSIONAL_Y" ]
   },
   {
@@ -127,6 +170,8 @@
     "light_emitted": 20,
     "light_color": [ 0, 0, 255 ],
     "move_cost": 1,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "flags": [ "TRANSPARENT", "FLAT", "ROAD", "ONE_DIMENSIONAL_X", "ONE_DIMENSIONAL_Y" ]
   },
   {
@@ -139,6 +184,8 @@
     "light_emitted": 20,
     "light_color": [ 0, 0, 255 ],
     "move_cost": 1,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "flags": [ "TRANSPARENT", "FLAT", "ROAD", "ONE_DIMENSIONAL_X", "ONE_DIMENSIONAL_Y" ]
   },
   {
@@ -150,6 +197,8 @@
     "color": "white",
     "light_emitted": 20,
     "move_cost": 1,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "flags": [ "TRANSPARENT", "FLAT", "GOES_UP", "GOES_DOWN" ]
   },
   {
@@ -215,6 +264,8 @@
     "symbol": ".",
     "color": "red",
     "move_cost": 2,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "flags": [ "TRANSPARENT", "DIGGABLE", "FLAT", "PLOWABLE" ],
     "bash": { "sound": "thump", "ter_set": "t_null", "str_min": 40, "str_max": 100, "str_min_supported": 100, "bash_below": true }
   },
@@ -227,6 +278,8 @@
     "symbol": "-",
     "color": "dark_gray",
     "move_cost": 0,
+    "connect_groups": "STRING",
+    "connects_to": "STRING",
     "coverage": 100,
     "flags": [ "NOITEM", "SUPPORTS_ROOF", "WALL", "REDUCE_SCENT", "AUTO_WALL_SYMBOL", "BLOCK_WIND" ],
     "bash": {
@@ -251,7 +304,7 @@
     "looks_like": "t_thconc_floor_olight",
     "flags": [ "TRANSPARENT", "SUPPORTS_ROOF", "INDOORS", "FLAT", "ROAD" ],
     "connect_groups": [ "CONCRETE", "INDOORFLOOR" ],
-    "connects_to": "CONCRETE",
+    "connects_to": [ "CONCRETE", "STRING" ],
     "bash": {
       "str_min": 4,
       "str_max": 12,

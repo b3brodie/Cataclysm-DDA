@@ -183,6 +183,35 @@ void health_ass( double val, dialogue &d, char scope, std::vector<diag_value> co
     d.actor( is_beta( scope ) )->mod_livestyle( val - current_health );
 }
 
+double daily_health_eval( const_dialogue const &d, char scope,
+                          std::vector<diag_value> const & /* params */, diag_kwargs const & /* kwargs */ )
+{
+    return d.const_actor( is_beta( scope ) )->get_daily_health();
+}
+
+void daily_health_ass( double val, dialogue &d, char scope,
+                       std::vector<diag_value> const & /* params */, diag_kwargs const &kwargs )
+{
+    talker *actor = d.actor( is_beta( scope ) );
+    const int delta = val - actor->get_daily_health();
+    // Match normal daily-health modifiers, with a directional cap that works
+    // even when the optional keyword is omitted.
+    const int cap = kwargs.kwarg_or( "cap", delta < 0 ? -200 : 200 ).dbl( d );
+    actor->mod_daily_health( delta, cap );
+}
+
+double hunger_eval( const_dialogue const &d, char scope,
+                    std::vector<diag_value> const & /* params */, diag_kwargs const & /* kwargs */ )
+{
+    return d.const_actor( is_beta( scope ) )->get_hunger();
+}
+
+void hunger_ass( double val, dialogue &d, char scope,
+                 std::vector<diag_value> const & /* params */, diag_kwargs const & /* kwargs */ )
+{
+    d.actor( is_beta( scope ) )->set_hunger( val );
+}
+
 double armor_eval( const_dialogue const &d, char scope, std::vector<diag_value> const &params,
                    diag_kwargs const & /* kwargs */ )
 {
@@ -255,6 +284,15 @@ double consumption_count_total_eval( const_dialogue const &d, char scope,
         }
     }
     return count;
+}
+
+double light_level_eval( const_dialogue const &d, char /* scope */,
+                         std::vector<diag_value> const &params, diag_kwargs const &/* kwargs */ )
+{
+    const map &here = get_map();
+    tripoint_abs_ms loc_val = params[0].tripoint( d );
+
+    return static_cast<double>( here.light_at( here.get_bub( loc_val ) ) );
 }
 
 double distance_eval( const_dialogue const &d, char /* scope */,
@@ -533,6 +571,30 @@ double knows_proficiency_eval( const_dialogue const &d, char scope,
 {
     return d.const_actor( is_beta( scope ) )
            ->knows_proficiency( proficiency_id( params[0].str( d ) ) );
+}
+
+double has_wielded_with_flag_eval( const_dialogue const &d, char scope,
+                                   std::vector<diag_value> const &params,
+                                   diag_kwargs const & /* kwargs */ )
+{
+    return d.const_actor( is_beta( scope ) )
+           ->wielded_with_flag( flag_id( params[0].str( d ) ) );
+}
+
+double morale_eval( const_dialogue const &d, char scope, std::vector<diag_value> const &,
+                    diag_kwargs const &kwargs )
+{
+    diag_value raw_val = kwargs.kwarg_or( "raw" );
+
+
+    const bool raw = is_true( raw_val.dbl( d ) );
+    return d.const_actor( is_beta( scope ) )->morale_cur( raw );
+}
+
+void morale_ass( double val, dialogue &d, char scope, std::vector<diag_value> const &,
+                 diag_kwargs const & /* kwargs */ )
+{
+    d.actor( is_beta( scope ) )->set_morale( val );
 }
 
 double hp_eval( const_dialogue const &d, char scope, std::vector<diag_value> const &params,
@@ -1598,6 +1660,19 @@ void npc_trust_ass( double val, dialogue &d, char scope,
     d.actor( is_beta( scope ) )->set_npc_trust( val );
 }
 
+double trauma_eval( const_dialogue const &d, char scope,
+                    std::vector<diag_value> const & /* params */,
+                    diag_kwargs const & /* kwargs */ )
+{
+    return d.const_actor( is_beta( scope ) )->get_trauma();
+}
+
+void trauma_ass( double val, dialogue &d, char scope,
+                 std::vector<diag_value> const & /* params */, diag_kwargs const & /* kwargs */ )
+{
+    d.actor( is_beta( scope ) )->set_trauma( val );
+}
+
 double gender_eval( const_dialogue const &d, char scope,
                     std::vector<diag_value> const & /* params */,
                     diag_kwargs const & /* kwargs */ )
@@ -1813,13 +1888,16 @@ std::map<std::string_view, dialogue_func> const dialogue_funcs{
     { "consumption_count", { "un", 1, consumption_count_eval, {}, { "hours" } } },
     { "consumption_count_total", { "un", 0, consumption_count_total_eval, {}, { "hours" } } },
     { "coverage", { "un", 1, coverage_eval } },
+    { "daily_health", { "un", 0, daily_health_eval, daily_health_ass, { "cap" } } },
     { "damage_level", { "un", 0, damage_level_eval } },
     { "degradation", { "un", 0, degradation_eval, degradation_ass } },
     { "distance", { "g", 2, distance_eval } },
+    { "light_level", { "g", 1, light_level_eval } },
     { "effect_intensity", { "un", 1, effect_intensity_eval, {}, { "bodypart" } } },
     { "effect_duration", { "un", 1, effect_duration_eval, {}, { "bodypart", "unit" } } },
     { "limb_score", { "un", 1, limb_score_eval, {}, { "type" } } },
     { "health", { "un", 0, health_eval, health_ass } },
+    { "hunger", { "un", 0, hunger_eval, hunger_ass } },
     { "encumbrance", { "un", 1, encumbrance_eval } },
     { "energy", { "g", 1, energy_eval } },
     { "event_statistic", { "g", 1, event_statistic_eval } },
@@ -1839,6 +1917,7 @@ std::map<std::string_view, dialogue_func> const dialogue_funcs{
     { "sum_traits_of_category", { "un", 1, sum_traits_of_category_eval, {}, { "type" } } },
     { "sum_traits_of_category_char_has", { "un", 1, sum_traits_of_category_char_has_eval, {}, { "type" } } },
     { "has_proficiency", { "un", 1, knows_proficiency_eval } },
+    { "has_wielded_with_flag", { "un", 1, has_wielded_with_flag_eval } },
     { "has_var", { "g", 1, has_var_eval } },
     { "hp", { "un", 1, hp_eval, hp_ass } },
     { "hp_max", { "un", 1, hp_max_eval } },
@@ -1850,6 +1929,7 @@ std::map<std::string_view, dialogue_func> const dialogue_funcs{
     { "mon_species_nearby", { "ung", -1, monster_species_nearby_eval, {}, { "radius", "attitude", "location" } } },
     { "mon_groups_nearby", { "ung", -1, monster_groups_nearby_eval, {}, { "radius", "attitude", "location" } } },
     { "moon_phase", { "g", 0, moon_phase_eval } },
+    { "morale", { "un", 0, morale_eval, morale_ass, { "raw" } } },
     { "num_input", { "g", 2, num_input_eval } },
     { "oxygen", { "un", 0, oxygen_eval, oxygen_ass } },
     { "oxygen_max", { "un", 0, oxygen_max_eval } },
@@ -1874,6 +1954,7 @@ std::map<std::string_view, dialogue_func> const dialogue_funcs{
     { "time_since", { "g", 1, time_since_eval, {}, { "unit" } } },
     { "time_until", { "g", 1, time_until_eval, {}, { "unit" } } },
     { "time_until_eoc", { "g", 1, time_until_eoc_eval, {}, { "unit" } } },
+    { "trauma", { "un", 0, trauma_eval, trauma_ass } },
     { "proficiency", { "un", 1, proficiency_eval, proficiency_ass, { "format", "direct" } } },
     { "val", { "un", 1, u_val, u_val_ass } },
     { "npc_anger", { "un", 0, npc_anger_eval, npc_anger_ass } },

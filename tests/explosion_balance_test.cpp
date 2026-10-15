@@ -15,6 +15,7 @@
 #include "coordinates.h"
 #include "creature.h"
 #include "damage.h"
+#include "enums.h"
 #include "explosion.h"
 #include "fragment_cloud.h"
 #include "game.h"
@@ -24,6 +25,7 @@
 #include "iuse_actor.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "map_helpers_tests.h"
 #include "monster.h"
 #include "point.h"
 #include "projectile.h"
@@ -41,9 +43,14 @@ static const damage_type_id damage_bullet( "bullet" );
 
 static const itype_id itype_grenade_act( "grenade_act" );
 
+namespace
+{
+
 enum class outcome_type {
     Kill, Casualty
 };
+
+} // namespace
 
 static float get_damage_vs_target( const std::string &target_id )
 {
@@ -190,7 +197,7 @@ static void check_vehicle_damage( const itype_id &explosive_id, const std::strin
     tripoint_bub_ms origin( 30, 30, 0 );
 
     vehicle *target_vehicle = get_map().add_vehicle( vproto_id( vehicle_id ), origin, 0_degrees,
-                              -1, 0 );
+                              -1, veh_spawn_status::UNDAMAGED );
     std::vector<int> before_hp = get_part_hp( target_vehicle );
 
     while( get_map().veh_at( origin ) ) {

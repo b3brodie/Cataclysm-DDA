@@ -296,16 +296,12 @@ void mod_manager::load_modfile( const JsonObject &jo, const cata_path &path )
     optional( jo, false, "core", modfile.core, false );
     optional( jo, false, "obsolete", modfile.obsolete, false );
     optional( jo, false, "loading_images", modfile.loading_images );
+    optional( jo, false, "disable_other_loading_screens", modfile.disable_other_loading_screens,
+              false );
 
     if( std::find( modfile.dependencies.begin(), modfile.dependencies.end(),
                    modfile.ident ) != modfile.dependencies.end() ) {
         jo.throw_error_at( "dependencies", "mod specifies self as a dependency" );
-    }
-
-    // TODO: Temporary migration, remove after 0.I stable
-    if( !modfile.obsolete && modfile.ident.str() == "user:default" ) {
-        modfile.obsolete = true;
-        set_default_mods( modfile.dependencies );
     }
 
     mod_map[modfile.ident] = std::move( modfile );

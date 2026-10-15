@@ -1,4 +1,3 @@
-#include <functional>
 #include <memory>
 #include <set>
 #include <string>
@@ -50,7 +49,7 @@ static const itype_id itype_bigback( "bigback" );
 static const itype_id itype_bottle_plastic( "bottle_plastic" );
 static const itype_id itype_bottle_plastic_small( "bottle_plastic_small" );
 static const itype_id itype_bottle_twoliter( "bottle_twoliter" );
-static const itype_id itype_bp_40sw( "bp_40sw" );
+static const itype_id itype_bp_40fmj( "bp_40fmj" );
 static const itype_id itype_cranberry_juice( "cranberry_juice" );
 static const itype_id itype_debug_modular_m4_carbine( "debug_modular_m4_carbine" );
 static const itype_id itype_glock_19( "glock_19" );
@@ -67,8 +66,6 @@ static const itype_id itype_water_clean( "water_clean" );
 
 static void test_reloading( item &target, item &ammo, bool expect_success = true )
 {
-    item target_copy( target );
-
     Character &dummy = get_avatar();
 
     clear_avatar();
@@ -92,7 +89,7 @@ static void test_reloading( item &target, item &ammo, bool expect_success = true
 
     // Quick and dirty check to see if anything was actually reloaded.
     // Doesn't check if right thing went to right place. But something did go somewhere
-    item_contents contents_before = target.get_contents();
+    const item_contents &contents_before = target.get_contents();
     item_contents contents_after = dummy.get_wielded_item()->get_contents();
     bool contents_changed = !contents_before.same_contents( contents_after );
     if( expect_success ) {
@@ -209,7 +206,7 @@ TEST_CASE( "reload_gun_with_casings", "[reload] [gun]" )
         }
 
         SECTION( "with one ammo of different type" ) {
-            item ammo( itype_bp_40sw );
+            item ammo( itype_bp_40fmj );
             test_reloading( gun, ammo );
         }
 

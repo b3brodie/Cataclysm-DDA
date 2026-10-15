@@ -62,8 +62,8 @@
 #include "translations.h"
 #include "uilist.h"
 #include "viewer.h"
+#include "visitable.h"
 
-static const efftype_id effect_allow_sleep( "allow_sleep" );
 static const efftype_id effect_asked_for_item( "asked_for_item" );
 static const efftype_id effect_asked_personal_info( "asked_personal_info" );
 static const efftype_id effect_asked_to_follow( "asked_to_follow" );
@@ -73,13 +73,13 @@ static const efftype_id effect_bite( "bite" );
 static const efftype_id effect_bleed( "bleed" );
 static const efftype_id effect_currently_busy( "currently_busy" );
 static const efftype_id effect_infected( "infected" );
-static const efftype_id effect_lying_down( "lying_down" );
-static const efftype_id effect_npc_suspend( "npc_suspend" );
 static const efftype_id effect_pet( "pet" );
-static const efftype_id effect_sleep( "sleep" );
 
 static const faction_id faction_no_faction( "no_faction" );
 static const faction_id faction_your_followers( "your_followers" );
+
+static const json_character_flag json_flag_BIONIC_LIMB( "BIONIC_LIMB" );
+static const json_character_flag json_flag_PARTIAL_BIONIC_LIMB( "PARTIAL_BIONIC_LIMB" );
 
 static const mission_type_id mission_MISSION_REACH_SAFETY( "MISSION_REACH_SAFETY" );
 
@@ -404,7 +404,7 @@ void talk_function::goto_location( npc &p )
     time_duration ETA = time_between_npc_OM_moves * tiles_to_travel;
     ETA = ETA * rng_float( 0.8, 1.2 ); // Add +-20% variance in our estimate
     if( !query_yn(
-            _( "Estimated time to arrival: %1$s  \nTiles to travel: %2$s  \nIs this path and destination acceptable?" ),
+            _( "Estimated time to arrival: %1$s  \nTiles to travel: %2$d  \nIs this path and destination acceptable?" ),
             to_string_approx( ETA ), tiles_to_travel ) ) {
         p.goal = npc::no_goal_point;
         p.omt_path.clear();
@@ -530,12 +530,7 @@ void talk_function::stop_guard( npc &p )
 
 void talk_function::wake_up( npc &p )
 {
-    p.rules.clear_override( ally_rule::allow_sleep );
-    p.rules.enable_override( ally_rule::allow_sleep );
-    p.remove_effect( effect_allow_sleep );
-    p.remove_effect( effect_lying_down );
-    p.remove_effect( effect_npc_suspend );
-    p.remove_effect( effect_sleep );
+    p.wake_by_player();
     // TODO: Get mad at player for waking us up unless we're in danger
 }
 
@@ -780,6 +775,44 @@ void talk_function::give_all_aid( npc &p )
     p.add_effect( effect_currently_busy, 240_minutes );
 }
 
+void talk_function::repair_bionic_limbs( npc &p )
+{
+    Character &player_character = get_player_character();
+
+    signed int price = 0;
+
+    for( const bodypart_id &bp : player_character.get_all_body_parts(
+             get_body_part_flags::only_main ) ) {
+        if( bp->has_flag( json_flag_BIONIC_LIMB ) || bp->has_flag( json_flag_PARTIAL_BIONIC_LIMB ) ) {
+            price += ( player_character.get_part_hp_max( bp ) - player_character.get_part_hp_cur( bp ) ) * 20;
+        }
+    }
+    if( price == 0 ) {
+        add_msg( m_good, _( "You don't need any repairs…" ) );
+        return;
+    }
+    bool const ret = npc_trading::pay_npc( p, price );
+    if( !ret ) {
+        return;
+    }
+
+    for( const bodypart_id &bp :
+         player_character.get_all_body_parts( get_body_part_flags::only_main ) ) {
+        if( bp->has_flag( json_flag_BIONIC_LIMB ) ||  bp->has_flag( json_flag_PARTIAL_BIONIC_LIMB ) ) {
+            player_character.heal( bp, player_character.get_part_hp_max( bp ) -
+                                   player_character.get_part_hp_cur( bp ) );
+            if( player_character.has_effect( effect_bite, bp.id() ) ) {
+                player_character.remove_effect( effect_bite, bp );
+            }
+            if( player_character.has_effect( effect_bleed, bp.id() ) ) {
+                player_character.remove_effect( effect_bleed, bp );
+            }
+        }
+    }
+    player_character.assign_activity( wait_npc_activity_actor( 30_minutes, p.get_name() ) );
+    p.add_effect( effect_currently_busy, 120_minutes );
+}
+
 static void generic_barber( const std::string &mut_type )
 {
     uilist hair_menu;
@@ -854,12 +887,15 @@ void talk_function::drop_items_in_place( npc &p )
     std::vector<drop_or_stash_item_info> to_drop;
 
     // add all non favorite carried items to the drop off list
-    for( const item_location &npcs_item : p.all_items_loc() ) {
-        if( !npcs_item->is_favorite && npcs_item.where() == item_location::type::container &&
-            npcs_item.parent_item().where() == item_location::type::character ) {
+    // this is all top-level items inside worn items (and wielded)
+    p.visit_items( [&to_drop]( const item_location & npcs_item ) {
+        if( !npcs_item->is_favorite && npcs_item.has_parent() &&
+            !npcs_item.parent_item().has_parent() ) {
             to_drop.emplace_back( npcs_item, npcs_item->count() );
+            return VisitResponse::SKIP;
         }
-    }
+        return VisitResponse::NEXT;
+    } );
     if( !to_drop.empty() ) {
         // spawn a activity for the npc to drop the specified items
         p.assign_activity( drop_activity_actor( to_drop, tripoint_rel_ms::zero, false ) );
@@ -874,6 +910,11 @@ void talk_function::follow( npc &p )
     g->add_npc_follower( p.getID() );
     p.set_attitude( NPCATT_FOLLOW );
     p.set_fac( faction_your_followers );
+    p.set_mission( NPC_MISSION_NULL );
+    p.goal = npc::no_goal_point;
+    p.guard_pos = std::nullopt;
+    p.clear_ai_guard_pos();
+    p.clear_committed_goal();
     get_player_character().cash += p.cash;
     p.cash = 0;
     if( !p.custom_profession.empty() ) {
@@ -884,6 +925,11 @@ void talk_function::follow( npc &p )
 void talk_function::follow_only( npc &p )
 {
     p.set_attitude( NPCATT_FOLLOW );
+    p.set_mission( NPC_MISSION_NULL );
+    p.goal = npc::no_goal_point;
+    p.guard_pos = std::nullopt;
+    p.clear_ai_guard_pos();
+    p.clear_committed_goal();
 }
 
 void talk_function::deny_follow( npc &p )

@@ -8,7 +8,6 @@
 #include "character.h"
 #include "coordinates.h"
 #include "enums.h"
-#include "inventory.h"
 #include "item.h"
 #include "item_location.h"
 #include "map.h"
@@ -18,6 +17,7 @@
 #include "point.h"
 #include "requirements.h"
 #include "ret_val.h"
+#include "temp_crafting_inventory.h"
 #include "type_id.h"
 #include "units.h"
 #include "veh_appliance.h"
@@ -70,7 +70,7 @@ static void test_repair( const std::vector<item> &tools, bool plug_in_tools, boo
 
     const tripoint_bub_ms vehicle_origin = test_origin + tripoint::south_east;
     vehicle *veh_ptr = here.add_vehicle( vehicle_prototype_car, vehicle_origin, -90_degrees, 0,
-                                         0 );
+                                         veh_spawn_status::UNDAMAGED );
 
     REQUIRE( veh_ptr != nullptr );
     // Find the frame at the origin.
@@ -94,10 +94,10 @@ static void test_repair( const std::vector<item> &tools, bool plug_in_tools, boo
     requirement_data reqs = vp.repair_requirements();
     // Bust cache on crafting_inventory()
     player_character.mod_moves( 1 );
-    inventory crafting_inv = player_character.crafting_inventory();
-    bool can_repair = vp.repair_requirements().can_make_with_inventory(
-                          player_character.crafting_inventory(),
-                          is_crafting_component );
+    temp_crafting_inventory crafting_inv = player_character.crafting_inventory();
+    bool can_repair = vp.repair_requirements().can_make_with_inventory( &player_character,
+                      player_character.crafting_inventory(),
+                      is_crafting_component );
     CHECK( can_repair == expect_craftable );
 }
 

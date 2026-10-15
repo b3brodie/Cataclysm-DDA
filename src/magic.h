@@ -78,6 +78,7 @@ enum class spell_flag : int {
     EXTRA_EFFECTS_FIRST, // the extra effects are cast before the main spell.
     PAIN_NORESIST, // pain altering spells can't be resisted (like with the deadened trait)
     NO_FAIL, // this spell cannot fail when you cast it
+    HIDDEN_SPELL, // this spell never shows any message when cast
     SPAWN_GROUP, // spawn or summon from an item or monster group, instead of individual item/monster ID
     IGNITE_FLAMMABLE, // if spell effect area has any thing flammable, a fire will be produced
     MUST_HAVE_CLASS_TO_LEARN, // you can't learn the spell unless you already have the class.
@@ -270,6 +271,10 @@ class spell_type
         dbl_or_var damage_increment;
         // maximum damage this spell can cause
         dbl_or_var max_damage;
+        std::pair<int, int> damage_at_max_level()
+        const; // evaluate what the damage could be at this spell's maximum level
+        std::pair<float, float> calculate_damage_increment()
+        const; // the variable damage_increment evaluated as a min/max
 
         // minimum range of a spell
         dbl_or_var min_range;
@@ -357,6 +362,9 @@ class spell_type
 
         // if vitamin is used, specifies the color of an energy
         nc_color energy_color() const;
+
+        // energy source as a string (translated)
+        std::string energy_string() const;
 
         damage_type_id dmg_type = damage_type_id::NULL_ID();
 
@@ -501,8 +509,6 @@ class spell
         // alternative cast message
         translation alt_message;
 
-        // minimum damage including levels
-        int min_leveled_damage( const Creature &caster ) const;
         double min_leveled_dot( const Creature &caster ) const;
         // minimum aoe including levels
         int min_leveled_aoe( const Creature &caster ) const;
@@ -511,6 +517,10 @@ class spell
         int min_leveled_accuracy( const Creature &caster ) const;
 
     public:
+        // minimum damage including levels
+        int min_leveled_damage( const Creature &caster ) const;
+        float get_eoc_damage_multiplier() const;
+
         spell() = default;
         explicit spell( spell_id sp, int xp = 0, int level_adjustment = 0 );
 
@@ -765,6 +775,9 @@ class known_magic
         bool knows_spell() const;
         // spells known by Character
         std::vector<spell_id> spells() const;
+        // whether any known spell can currently be cast
+        bool can_cast_any_spell( const Character &guy,
+                                 std::map<magic_type_id, bool> &success_tracker );
         // gets the spell associated with the spell_id to be edited
         spell &get_spell( const spell_id &sp );
         // opens up a ui that the Character can choose a spell from

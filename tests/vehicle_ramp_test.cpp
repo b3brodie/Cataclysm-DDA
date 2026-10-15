@@ -11,9 +11,11 @@
 #include "coordinates.h"
 #include "creature.h"
 #include "creature_tracker.h"
+#include "enums.h"
 #include "game.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "map_helpers_tests.h"
 #include "map_scale_constants.h"
 #include "monster.h"
 #include "point.h"
@@ -100,7 +102,8 @@ static void ramp_transition_angled( const vproto_id &veh_id, const units::angle 
     if( here.ter( map_starting_point ) != ter_id( "t_pavement" ) ) {
         return;
     }
-    vehicle *veh_ptr = here.add_vehicle( veh_id, map_starting_point, angle, 1, 0 );
+    vehicle *veh_ptr = here.add_vehicle( veh_id, map_starting_point, angle, 1,
+                                         veh_spawn_status::UNDAMAGED );
 
     REQUIRE( veh_ptr != nullptr );
     if( veh_ptr == nullptr ) {
@@ -252,7 +255,8 @@ static void level_out( const vproto_id &veh_id, const bool drop_pos )
     // Make sure the avatar is out of the way
     Character &player_character = get_player_character();
     player_character.setpos( here, map_starting_point + point( 5, 5 ) );
-    vehicle *veh_ptr = here.add_vehicle( veh_id, map_starting_point, 180_degrees, 1, 0 );
+    vehicle *veh_ptr = here.add_vehicle( veh_id, map_starting_point, 180_degrees, 1,
+                                         veh_spawn_status::UNDAMAGED );
 
     REQUIRE( veh_ptr != nullptr );
     if( veh_ptr == nullptr ) {

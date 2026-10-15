@@ -3,10 +3,12 @@
 #define CATA_SRC_CATA_TILES_H
 
 #include <array>
+#include <atomic>
 #include <bitset>
 #include <chrono>
 #include <cstddef>
 #include <deque>
+#include <functional>
 #include <map>
 #include <memory>
 #include <optional>
@@ -24,6 +26,7 @@
 #include "calendar.h"
 #include "cata_small_literal_vector.h"
 #include "coordinates.h"
+#include "map_scale_constants.h"
 #include "creature.h"
 #include "cuboid_rectangle.h"
 #include "mapdata.h"
@@ -32,25 +35,39 @@
 #include "point.h"
 #include "sdl_geometry.h"
 #include "sdl_wrappers.h"
+#include "smooth_lighting.h"
 #include "type_id.h"
 #include "units.h"
 #include "weather.h"
 #include "weighted_list.h"
 
+#include "atlas_bake_plan.h"
+#include "cata_shader.h"
+
+namespace cata_shader
+{
+class variant_pass;
+} // namespace cata_shader
+
+// Maps draw-dispatch inputs to the variant_kind enum the GPU shader path
+// consumes.
+enum class lit_level : uint8_t;
+cata_shader::variant_kind compute_variant_kind( lit_level ll, bool use_nv_tiles );
+
 class Character;
-class JsonObject;
-class cata_path;
+class map;
 class memorized_tile;
 class monster;
 class nc_color;
 class pixel_minimap;
 struct sprite_screen_bounds;
+struct tile_tint;
 struct tint_sprite_record;
+struct visibility_variables;
 enum class direction : unsigned int;
 enum class lit_level : uint8_t;
 enum class visibility_type : int;
 
-extern void set_displaybuffer_rendertarget();
 
 /** Structures */
 struct tile_type {
@@ -63,6 +80,7 @@ struct tile_type {
     point offset = point::zero;
     point offset_retracted = point::zero;
     float pixelscale = 1.0;
+    std::optional<smooth_lighting::light_anchor> light_anchor;
 
     std::vector<std::string> available_subtiles;
 };
@@ -86,6 +104,7 @@ enum class TILE_CATEGORY {
     OVERMAP_WEATHER,
     MAP_EXTRA,
     OVERMAP_NOTE,
+    PORTRAIT,
     last
 };
 
@@ -106,7 +125,8 @@ const std::unordered_map<std::string, TILE_CATEGORY> to_TILE_CATEGORY = {
     {"overmap_vision_level", TILE_CATEGORY::OVERMAP_VISION_LEVEL},
     {"overmap_weather", TILE_CATEGORY::OVERMAP_WEATHER},
     {"map_extra", TILE_CATEGORY::MAP_EXTRA},
-    {"overmap_note", TILE_CATEGORY::OVERMAP_NOTE}
+    {"overmap_note", TILE_CATEGORY::OVERMAP_NOTE},
+    {"portrait", TILE_CATEGORY::PORTRAIT}
 };
 
 enum class NEIGHBOUR {
@@ -154,6 +174,9 @@ class texture
         std::pair<int, int> dimension() const {
             return std::make_pair( srcrect.w, srcrect.h );
         }
+        const SDL_Rect &get_srcrect() const {
+            return srcrect;
+        }
         /// Returns the opaque pixel bounding box relative to the sprite origin.
         const SDL_Rect &get_opaque_rect() const {
             return opaque_rect;
@@ -166,10 +189,157 @@ class texture
         /// the stored source rectangle. Other parameters are simply passed through.
         int render_copy_ex( const SDL_Renderer_Ptr &renderer, const SDL_Rect *const dstrect,
                             const double angle,
-                            const SDL_Point *const center, const SDL_RendererFlip flip ) const {
+                            const SDL_Point *const center, const CataFlipMode flip ) const {
             RenderCopyEx( renderer, sdl_texture_ptr.get(), &srcrect, dstrect, angle, center, flip );
             return 0;
         }
+};
+
+// Reason an atlas upload was interrupted. A separate enum from the recovery
+// coordinator's severity so the tileset loader needs no coordinator header;
+// the coordinator maps these to severities. paused stops the upload so it
+// retries on foreground; the *_invalidated reasons mean a reset or device
+// loss was observed mid upload.
+enum class atlas_upload_interrupt {
+    none,
+    paused,
+    texture_resources_invalidated,
+    renderer_invalidated,
+    // Shader pass reported lost renderer boundary before upload allocated
+    // anything. Must replace renderer (device_lost).
+    shader_boundary_lost,
+};
+// Polled between atlas chunks. Returns the reason to stop, or none.
+using atlas_upload_poll = std::function<atlas_upload_interrupt()>;
+
+// Candidate atlas textures captured when an upload is interrupted, kept
+// alive past the pause so their destructors never run against a suspended or
+// destroyed renderer. Each batch shares one gate captured by every texture's
+// deleter: setting it suppresses SDL_DestroyTexture when the originating
+// renderer is torn down before the quarantine is drained.
+class atlas_replay_quarantine
+{
+    public:
+        using gate = gpu_handle_graveyard::gate;
+
+        struct batch {
+            gpu_handle_graveyard handles;
+            uint64_t renderer_instance_generation = 0;
+        };
+
+        void add( batch &&b );
+        bool empty() const {
+            return batches_.empty();
+        }
+        // Abandon gate shared by the most recently added batch's handles, or
+        // null when empty, so a caller can tell an abandoned batch (gate set)
+        // from a drained one.
+        gate last_batch_gate() const {
+            return batches_.empty() ? gate{} :
+                   batches_.back().handles.current_gate();
+        }
+        // Destroy the quarantined textures against the still-live renderer.
+        void drain_live_renderer();
+        // Release C++ ownership without SDL_DestroyTexture because the
+        // originating renderer is being destroyed; its device reclaims the
+        // GPU memory on teardown.
+        void abandon_pre_lost_renderer();
+
+    private:
+        std::vector<batch> batches_;
+};
+
+// smooth lighting map shared by every tile context, so lit states keep their
+// texture across zoom context switches. lit_sample.glsl samples it, one
+// texel per reality bubble tile, z levels stacked from the lowest down;
+// texels outside the fill area stay 0
+// what growing the prefiltered light's texture did; unsafe means the
+// renderer may still read the old texture, so the frame must abort
+enum class prefilter_texture_result : uint8_t {
+    ok,
+    failed,
+    unsafe,
+};
+
+class smooth_lightmap
+{
+    public:
+        // create the texture on first use; failure if SDL could not
+        std::optional<smooth_lighting::lit_failure> ensure_texture( const SDL_Renderer_Ptr &renderer );
+        // fill and upload levels min_z to max_z; an upload failure is returned
+        // and forgets that level
+        std::optional<smooth_lighting::lit_failure> fill( const map &here,
+                const smooth_lighting::lightmap_fill_settings &settings, int min_z, int max_z );
+        SDL_Texture *texture() const {
+            return texture_.get();
+        }
+        const smooth_lighting::lightmap_extent &extent() const {
+            return extent_;
+        }
+        // refill every level next frame
+        void invalidate() {
+            keys_.forget_all();
+        }
+        // grow prefiltered light's texture to at least `size` within
+        // `max_texture_size`; `release_readers` drops what reads the old one
+        // and says whether that was safe
+        prefilter_texture_result ensure_prefilter_texture( const SDL_Renderer_Ptr &renderer,
+                const point &size, int max_texture_size, const std::function<bool()> &release_readers );
+        SDL_Texture *prefilter_texture() const {
+            return prefilter_texture_.get();
+        }
+        // changes with every texel the light map texture takes
+        uint64_t upload_generation() const {
+            return upload_generation_;
+        }
+        // prefilter layout over the cells levels min_z to max_z show in detail
+        smooth_lighting::prefilter_layout prefilter_layout( const half_open_rectangle<point> &fill_area,
+                int min_z, int max_z ) const;
+        smooth_lighting::prefilter_cache &prefilter() {
+            return prefilter_;
+        }
+        // drop textures and all keys; drop lit states that hold them first
+        void reset();
+        smooth_lighting::failure_policy &failures() {
+            return failures_;
+        }
+        // failures that turn off only smooth_filtered
+        smooth_lighting::failure_policy &filtered_failures() {
+            return filtered_failures_;
+        }
+    private:
+        smooth_lighting::failure_policy failures_;
+        smooth_lighting::failure_policy filtered_failures_{ smooth_lighting::lit_failure::prefilter };
+        SDL_Texture_Ptr texture_;
+        uint64_t upload_generation_ = 0;
+        SDL_Texture_Ptr prefilter_texture_;
+        point prefilter_size_;
+        smooth_lighting::prefilter_cache prefilter_;
+        smooth_lighting::lightmap_keys keys_;
+        // each level's texels as last uploaded; a refill that comes out the
+        // same skips the upload
+        std::array<std::vector<smooth_lighting::lightmap_texel>, OVERMAP_LAYERS> uploaded_;
+        // each level's cells seen in detail as last filled
+        std::array<std::optional<half_open_rectangle<point>>, OVERMAP_LAYERS> seen_boxes_;
+        std::vector<smooth_lighting::lightmap_texel> scratch_;
+        smooth_lighting::lightmap_extent extent_;
+};
+
+// what light a sprite takes under smooth lighting
+enum class draw_light : uint8_t {
+    // the scene's light at its tile, from the light map
+    scene,
+    // as its lit_level says whatever the light map holds: overlays, indicators,
+    // vision effects, draw overrides, creatures shown by special vision
+    fixed,
+};
+
+// a sprite draw_sprite_at was asked to draw, for tests
+struct drawn_sprite_record {
+    std::string id;
+    draw_light light = draw_light::scene;
+    // light anchor it took: its tile's, else the default for what it shows
+    std::optional<smooth_lighting::light_anchor> anchor;
 };
 
 /**
@@ -180,6 +350,12 @@ class texture
 struct tile_render_params {
     lit_level ll;
     bool use_night_vision_tiles = false;
+    // the sprite's map tile, for smooth lighting
+    tripoint_bub_ms pos;
+    draw_light light = draw_light::scene;
+    // where what the sprite shows takes its smooth light from when its tile
+    // doesn't say; nullopt leaves it to the sprite's shape
+    std::optional<smooth_lighting::light_anchor> anchor;
 };
 
 /**
@@ -197,6 +373,23 @@ class layer_context_sprites
         int total_weight;
         //if set, appends to the sprite name for handling contexts
         std::string append_suffix;
+};
+
+// Inputs needed to re-upload one atlas after renderer recreate or
+// device-texture reset. image_path_u8 is a UTF-8 byte sequence so the
+// descriptor avoids a cata_path dependency.
+// Test-only seam (full definition in sdl_renderer_recovery.h), befriended below.
+struct renderer_recovery_test_support;
+
+struct atlas_replay_descriptor {
+    std::string image_path_u8;
+    int color_key_r = -1;
+    int color_key_g = -1;
+    int color_key_b = -1;
+    int sprite_width = 0;
+    int sprite_height = 0;
+    int atlas_offset = 0;
+    int expected_tilecount = 0;
 };
 
 class tileset
@@ -231,6 +424,26 @@ class tileset
         std::vector<texture> memory_tile_values;
         std::vector<texture> silhouette_tile_values;
 
+        // Descriptors recorded during JSON parsing; replayed by upload_atlases.
+        std::vector<atlas_replay_descriptor> atlas_descriptors;
+        // Sprite index of the synthetic highlight overlay, or nullopt when
+        // the tileset defines its own ITEM_HIGHLIGHT.
+        std::optional<int> default_item_highlight_index;
+
+        // Renderer-instance and device-texture epochs the textures were
+        // uploaded against. A bundle whose epochs differ from the live ones
+        // is stale and must be reuploaded before use.
+        uint64_t renderer_instance_generation_at_upload = 0;
+        uint64_t gpu_textures_generation_at_upload = 0;
+        // Memory-map mode the atlases were uploaded with, retained so a
+        // device-reset replay regenerates the memory tiles identically.
+        std::string memory_map_mode_at_upload;
+        // which variants the atlases were uploaded with, and filter fingerprint
+        // they were uploaded under, so a stale bundle can be told from a valid
+        // one
+        atlas_bake_plan bake_plan_at_upload;
+        uint64_t filter_fingerprint_at_upload = 0;
+
         std::unordered_set<std::string> duplicate_ids;
 
         std::unordered_map<std::string, tile_type> tile_ids;
@@ -245,6 +458,7 @@ class tileset
         }
 
         friend class tileset_cache;
+        friend struct renderer_recovery_test_support;
 
     public:
 
@@ -304,6 +518,59 @@ class tileset
             return duplicate_ids;
         }
 
+        std::unordered_set<std::string> get_all_portrait_tile_ids( bool male ) const;
+
+        const std::vector<atlas_replay_descriptor> &get_atlas_descriptors() const {
+            return atlas_descriptors;
+        }
+        void append_atlas_descriptor( atlas_replay_descriptor desc ) {
+            atlas_descriptors.push_back( std::move( desc ) );
+        }
+        std::optional<int> get_default_item_highlight_index() const {
+            return default_item_highlight_index;
+        }
+        void set_default_item_highlight_index( std::optional<int> idx ) {
+            default_item_highlight_index = idx;
+        }
+        uint64_t get_renderer_instance_generation_at_upload() const {
+            return renderer_instance_generation_at_upload;
+        }
+        uint64_t get_gpu_textures_generation_at_upload() const {
+            return gpu_textures_generation_at_upload;
+        }
+        void set_upload_generations( uint64_t renderer_instance_gen, uint64_t gpu_textures_gen ) {
+            renderer_instance_generation_at_upload = renderer_instance_gen;
+            gpu_textures_generation_at_upload = gpu_textures_gen;
+        }
+        const std::string &get_memory_map_mode_at_upload() const {
+            return memory_map_mode_at_upload;
+        }
+        void set_memory_map_mode_at_upload( const std::string &mode ) {
+            memory_map_mode_at_upload = mode;
+        }
+        const atlas_bake_plan &get_bake_plan_at_upload() const {
+            return bake_plan_at_upload;
+        }
+        void set_bake_plan_at_upload( const atlas_bake_plan &plan ) {
+            bake_plan_at_upload = plan;
+        }
+        uint64_t get_filter_fingerprint_at_upload() const {
+            return filter_fingerprint_at_upload;
+        }
+        void set_filter_fingerprint_at_upload( uint64_t fingerprint ) {
+            filter_fingerprint_at_upload = fingerprint;
+        }
+        // Drop the per-variant atlas textures. Safe to call repeatedly; the
+        // descriptors and metadata are retained for a later replay.
+        void release_gpu_atlases() {
+            tile_values.clear();
+            shadow_tile_values.clear();
+            night_tile_values.clear();
+            overexposed_tile_values.clear();
+            memory_tile_values.clear();
+            silhouette_tile_values.clear();
+        }
+
         tile_type &create_tile_type( const std::string &id, tile_type &&new_tile_type );
         const tile_type *find_tile_type( const std::string &id ) const;
 
@@ -326,117 +593,98 @@ class tileset
                 season_type season ) const;
 };
 
+// Hashes the options baked into tileset textures so changing any of them
+// invalidates the cache key and forces a reupload. Always folds in
+// SCALING_MODE; adds MEMORY_RGB_{DARK,BRIGHT}_{R,G,B} and MEMORY_GAMMA under
+// the "color_pixel_custom" memory map mode.
+uint64_t compute_tileset_filter_fingerprint( const std::string &memory_map_mode );
+
+struct tileset_cache_key {
+    std::string tileset_id;
+    std::string memory_preset;
+    uint64_t filter_fingerprint = 0;
+
+    bool operator==( const tileset_cache_key &other ) const {
+        return tileset_id == other.tileset_id
+               && memory_preset == other.memory_preset
+               && filter_fingerprint == other.filter_fingerprint;
+    }
+};
+
 class tileset_cache
 {
     public:
+        // Look up or load a tileset bundle. current_renderer_instance_gen and
+        // current_gpu_textures_gen are compared against the bundle's recorded
+        // generations; a mismatch on either treats the cached entry as stale
+        // and reloads. A fresh upload builds an isolated candidate, published only
+        // on full success; on interrupt the candidate moves into *quarantine, the
+        // live entry stays, and *out_interrupt reports the reason with a null return.
         std::shared_ptr<const tileset> load_tileset( const std::string &tileset_id,
                 const SDL_Renderer_Ptr &renderer, bool precheck,
-                bool force, bool pump_events, bool terrain );
+                bool force, bool pump_events, bool terrain,
+                const std::string &memory_map_mode,
+                uint64_t current_renderer_instance_gen,
+                uint64_t current_gpu_textures_gen,
+                const atlas_upload_poll &poll = {},
+                atlas_replay_quarantine *quarantine = nullptr,
+                atlas_upload_interrupt *out_interrupt = nullptr );
+
+        // Drop the atlas textures on every live cached tileset. Called before
+        // renderer destruction so the handles are freed against the live
+        // renderer. Expired entries are pruned. Idempotent.
+        void release_live_atlases();
+
+        // Re-upload atlases over every live cached tileset against `renderer`
+        // and the given generations, replaying each bundle's descriptors under
+        // the applied atlas configuration and re-keying it in place. poll is
+        // consulted between entries and chunks; on interrupt the upload stops,
+        // candidates quarantine, and the reason returns.
+        atlas_upload_interrupt replay_live_atlases( const SDL_Renderer_Ptr &renderer,
+                uint64_t renderer_instance_gen, uint64_t gpu_textures_gen,
+                const atlas_upload_poll &poll, atlas_replay_quarantine &quarantine );
+
+        // True if any live uploaded bundle fails bundle_needs_repair against
+        // applied mode and fingerprint and shader availability. Also visits
+        // superseded entries: their holders still draw them.
+        bool any_live_bundle_needs_repair( const std::string &applied_mode,
+                                           uint64_t applied_fingerprint,
+                                           bool shader_variants_available ) const;
     private:
         class loader;
+        friend struct renderer_recovery_test_support;
 
-        std::unordered_map<std::string, std::weak_ptr<tileset>> tilesets_;
+        // return the latest live bundle at the key that no later publish superseded,
+        // when its recorded generations match the current ones; null on a miss
+        // or a stale entry. The single freshness predicate behind the fetch
+        // path's cache hit.
+        std::shared_ptr<tileset> find_fresh_cached( const tileset_cache_key &key,
+                uint64_t current_renderer_instance_gen, uint64_t current_gpu_textures_gen ) const;
+
+        // 1 tracked bundle
+        // and the key it was published under.
+        // superseded is set when a later publish used an equal key
+        // and removes the entry from lookup only
+        struct live_entry {
+            tileset_cache_key key;
+            std::weak_ptr<tileset> bundle;
+            bool superseded = false;
+        };
+
+        // Track a newly published bundle. Always appends, and marks every older
+        // entry with an equal key superseded: another context may still draw
+        // that object, so release and replay keep reaching it, but lookup must
+        // not hand it out again. Prunes expired entries first.
+        void track_bundle( const tileset_cache_key &key, const std::shared_ptr<tileset> &bundle );
+        // Remove entries with expired bundles. Never called mid-walk.
+        void prune_expired();
+
+        // every live published bundle, in publish order
+        // the one collection behind lookup, release and replay
+        // equal keys may repeat
+        std::vector<live_entry> live_;
 };
 
-class tileset_cache::loader
-{
-    private:
-        tileset &ts;
-        const SDL_Renderer_Ptr &renderer;
-
-        point sprite_offset;
-        point sprite_offset_retracted;
-        float sprite_pixelscale = 1.0;
-
-        int sprite_width = 0;
-        int sprite_height = 0;
-
-        int offset = 0;
-        int sprite_id_offset = 0;
-        int size = 0;
-
-        int R = 0;
-        int G = 0;
-        int B = 0;
-
-        int tile_atlas_width = 0;
-
-        void ensure_default_item_highlight();
-
-        void copy_surface_to_texture( const SDL_Surface_Ptr &surf, const point &offset,
-                                      std::vector<texture> &target,
-                                      const std::vector<SDL_Rect> &opaque_bounds );
-        void create_textures_from_tile_atlas( const SDL_Surface_Ptr &tile_atlas, const point &offset );
-
-        void process_variations_after_loading( weighted_int_list<std::vector<int>> &v ) const;
-
-        void add_ascii_subtile( tile_type &curr_tile, const std::string &t_id, int sprite_id,
-                                const std::string &s_id );
-        void load_ascii_set( const JsonObject &entry );
-        /**
-         * Create a new tile_type, add it to tile_ids (using <B>id</B>).
-         * Set the fg and bg properties of it (loaded from the json object).
-         * Makes sure each is either -1, or in the interval [0,size).
-         * If it's in that interval, adds offset to it, if it's not in the
-         * interval (and not -1), throw an std::string error.
-         */
-        tile_type &load_tile( const JsonObject &entry, const std::string &id );
-
-        void load_tile_spritelists( const JsonObject &entry, weighted_int_list<std::vector<int>> &vs,
-                                    std::string_view objname ) const;
-
-        void load_ascii( const JsonObject &config );
-        /** Load tileset, R,G,B, are the color components of the transparent color
-         * Returns the number of tiles that have been loaded from this tileset image
-         * @param pump_events Handle window events and refresh the screen when necessary.
-         *        Please ensure that the tileset is not accessed when this method is
-         *        executing if you set it to true.
-         * @throw std::exception If the image can not be loaded.
-         */
-        void load_tileset( const cata_path &path, bool pump_events );
-        /**
-         * Load tiles from json data.This expects a "tiles" array in
-         * <B>config</B>. That array should contain all the tile definition that
-         * should be taken from an tileset image.
-         * Because the function only loads tile definitions for a single tileset
-         * image, only tile indices (tile_type::fg tile_type::bg) in the interval
-         * [0,size].
-         * The <B>offset</B> is automatically added to the tile index.
-         * sprite offset dictates where each sprite should render in its tile
-         * @throw std::exception On any error.
-         */
-        void load_tilejson_from_file( const JsonObject &config );
-        /**
-         * Helper function called by load.
-         * @param pump_events Handle window events and refresh the screen when necessary.
-         *        Please ensure that the tileset is not accessed when this method is
-         *        executing if you set it to true.
-         * @throw std::exception On any error.
-         */
-        void load_internal( const JsonObject &config, const cata_path &tileset_root,
-                            const cata_path &img_path, bool pump_events );
-
-        /**
-         * Helper function to load layering data.
-         * @throw std::exception On any error.
-         */
-        void load_layers( const JsonObject &config );
-
-    public:
-        loader( tileset &ts, const SDL_Renderer_Ptr &r ) : ts( ts ), renderer( r ) {
-        }
-        /**
-         * @throw std::exception On any error.
-         * @param tileset_id Ident of the tileset, as it appears in the options.
-         * @param precheck If tue, only loads the meta data of the tileset (tile dimensions).
-         * @param pump_events Handle window events and refresh the screen when necessary.
-         *        Please ensure that the tileset is not accessed when this method is
-         *        executing if you set it to true.
-         * @param terrain If true, this will be an overmap/terrain tileset
-         */
-        void load( const std::string &tileset_id, bool precheck, bool pump_events = false,
-                   bool terrain = false );
-};
 
 enum class text_alignment : int {
     left,
@@ -456,6 +704,14 @@ struct formatted_text {
     formatted_text( const std::string &text, int color, direction text_direction );
 };
 
+struct texture_draw_data {
+    SDL_Texture *texture;
+    SDL_Rect dimensions;
+    // avoiding ImVec2 here
+    std::pair<float, float> uv0;
+    std::pair<float, float> uv1;
+};
+
 /** type used for color blocks overlays.
  * first: The SDL blend mode used for the color.
  * second:
@@ -467,6 +723,7 @@ using color_block_overlay_container = std::pair<SDL_BlendMode, std::multimap<poi
 class cata_tiles
 {
         friend class cata_tiles_test_helper;
+        friend struct renderer_recovery_test_support;
 
     public:
         cata_tiles( const SDL_Renderer_Ptr &render, const GeometryRenderer_Ptr &geometry,
@@ -478,6 +735,21 @@ class cata_tiles
         void set_draw_scale( int scale );
 
         void on_options_changed();
+
+        // lighting the map drew with last frame, and why it is not smooth
+        smooth_lighting::lighting_status effective_lighting() const {
+            return lighting_status_;
+        }
+        // where sprites of `category` with `id` take their smooth light from
+        // when their tile doesn't say: terrain by terrain_light_anchor,
+        // furniture, monsters and vehicle parts on their base; nullopt leaves
+        // the rest to their shape
+        static std::optional<smooth_lighting::light_anchor> default_light_anchor(
+            TILE_CATEGORY category, const std::string &id );
+        // the memory look smooth lighting fades into: `active` from the variant
+        // pass, else the custom MEMORY_RGB_* colors and MEMORY_GAMMA
+        static cata_shader::memory_look memory_look_from_options(
+            std::optional<cata_shader::memory_preset> active );
 
         // checks if the tileset_ptr is valid
         bool is_valid() {
@@ -492,6 +764,11 @@ class cata_tiles
 
         /** Minimap functionality */
         void draw_minimap( const point &dest, const tripoint_bub_ms &center, int width, int height );
+
+        std::optional<texture_draw_data> get_texture_draw_data( const std::string &id,
+                TILE_CATEGORY category, const tripoint_bub_ms &p );
+
+        std::unordered_set<std::string> get_all_portrait_tile_ids( bool male ) const;
 
     protected:
         /** How many rows and columns of tiles fit into given dimensions, fully
@@ -529,6 +806,8 @@ class cata_tiles
                                       std::string &draw_id );
 
     private:
+        unsigned int get_variant_seed( const tile_type &display_tile, TILE_CATEGORY category,
+                                       const tripoint_bub_ms &pos, const std::string &found_id );
         bool draw_from_id_string_internal( const std::string &id, const tripoint_bub_ms &pos, int subtile,
                                            int rota,
                                            lit_level ll, int retract, bool apply_night_vision_goggles, int &height_3d );
@@ -648,6 +927,9 @@ class cata_tiles
         bool draw_zombie_revival_indicators( const tripoint_bub_ms &pos, lit_level ll, int &height_3d,
                                              const std::array<bool, 5> &invisible, bool memorize_only );
         void draw_zlevel_overlay( const tripoint_bub_ms &p, lit_level ll, int &height_3d );
+        // unbind any sprite shader before an untextured draw. throws after
+        // latching recovery when the flush is refused
+        void flush_sprite_shader_for_untextured_draw();
         void draw_entity_with_overlays( const Character &ch, const tripoint_bub_ms &p, lit_level ll,
                                         int &height_3d, FacingDirection facing_override = FacingDirection::NONE );
         void draw_entity_with_overlays( const Character &ch, const tripoint_abs_omt &p, lit_level ll,
@@ -795,6 +1077,8 @@ class cata_tiles
             const point &win_size, const point_bub_ms &center,
             bool iso );
         static std::vector<options_manager::id_and_option> build_renderer_list();
+        // "auto", then every GPU driver SDL was built with
+        static std::vector<options_manager::id_and_option> build_gpu_backend_list();
         static std::vector<options_manager::id_and_option> build_display_list();
     private:
         std::pair<std::string, bool> get_omt_id_rotation_and_subtile( const tripoint_abs_omt &omp,
@@ -829,6 +1113,9 @@ class cata_tiles
         const SDL_Renderer_Ptr &renderer;
         const GeometryRenderer_Ptr &geometry;
         tileset_cache &cache;
+
+        // Variant pass is process-lifetime, owned alongside the renderer.
+        // Consumers reach it via get_shared_variant_pass in sdltiles.h.
         std::shared_ptr<const tileset> tileset_ptr;
 
         // the scaled default sprite width and height. in non-isometric mode,
@@ -849,10 +1136,16 @@ class cata_tiles
 
         // During the layer loop, these point to the current tile's tint tracking
         // state. draw_sprite_at uses them to accumulate screen bounds and record
-        // sprites for later silhouette replay. Only set for ortho tiles that need
-        // tinting; null for iso tiles, UI overlays, and non-tinted tiles.
+        // sprites for later silhouette replay. Only set on the mask path for
+        // ortho tiles that need tinting; null otherwise.
         sprite_screen_bounds *m_cur_bounds = nullptr;
         small_literal_vector<tint_sprite_record, 4> *m_cur_tint_sprites = nullptr;
+        // Tint of the tile being drawn on the shader tint path; null for
+        // untinted tiles, UI overlays and the mask path
+        const tile_tint *m_cur_tint = nullptr;
+        // true while a z-level binds tint.frag for NORMAL sprites, so untinted
+        // NORMAL sprites keep the same state and the batch holds
+        bool m_zlev_tint_bound = false;
 
         // Scratch render target for the ortho silhouette mask tint path. Sized
         // to fit the largest batched sprite region; reused across tiles/frames.
@@ -860,6 +1153,44 @@ class cata_tiles
         int tint_mask_w = 0;
         int tint_mask_h = 0;
         void ensure_tint_mask_texture( int w, int h );
+
+        // this frame's lit sprites draw through the light map
+        bool smooth_lighting_active = false;
+        // lit sprites take each tile's own light, the same whether a sprite
+        // stands or not
+        bool lit_per_tile = false;
+        // screen offset of the z level being drawn from the tile anchor
+        int lit_ground_dy = 0;
+        // height_3d of the z level being drawn, as lit_ground_dy in tileset pixels
+        int lit_level_height_3d = 0;
+        // cells this frame's light map holds
+        smooth_lighting::lightmap_extent lit_extent;
+        // changes are logged
+        smooth_lighting::lighting_status lighting_status_ =
+            smooth_lighting::lighting_status::classic_by_option;
+        void note_lighting_status( smooth_lighting::lighting_status s );
+        // light policy of sprites drawn now
+        draw_light m_draw_light = draw_light::scene;
+        // default light anchor of the sprite being drawn: the outermost
+        // draw_from_id_string_internal call decides it from what it shows, and
+        // its subtile and fallback calls reuse it
+        bool m_anchor_decided = false;
+        std::optional<smooth_lighting::light_anchor> m_shown_anchor;
+        // test seam: draw_sprite_at records each sprite's id, light policy and
+        // anchor
+        std::vector<drawn_sprite_record> *test_draw_light_log = nullptr;
+        const std::string *test_draw_id = nullptr;
+        // fill and bind the shared light map for this frame's sprites when
+        // LIGHTING_MODE asks for it; false leaves the classic variants
+        bool begin_smooth_lighting( const visibility_variables &cache,
+                                    const half_open_rectangle<point> &fill_area, int min_z, int max_z );
+        // draw sprite at `dst`, rotated and flipped as SDL_RenderTextureRotated
+        // would, as a quad with ground-relative vertices under the tile
+        // anchored at `anchor`; a `standing` sprite takes its light along its
+        // base line instead
+        void render_lit_sprite( const texture &tex, const SDL_Rect &dst, smooth_lighting::quarter_turn turn,
+                                CataFlipMode flip, const tripoint_bub_ms &pos, const point &anchor,
+                                bool standing );
 
         bool in_animation = false;
 
@@ -946,6 +1277,14 @@ class cata_tiles
 
         // True if the minimap rendered critters with blinking beacons.
         bool has_blinking_minimap() const;
+
+        // Drop the pixel minimap's renderer-owned resources and cache so
+        // they rebuild against the live renderer on the next draw.
+        void reset_minimap();
+
+        // Drop the scratch silhouette mask target so the next tinted ortho
+        // draw reallocates it against the live renderer.
+        void reset_tint_mask();
 
         // Draw caches persist data between draws and are only recalculated when dirty
         void set_draw_cache_dirty();

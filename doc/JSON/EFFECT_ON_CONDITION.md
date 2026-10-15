@@ -86,7 +86,7 @@ For example, `{ "npc_has_effect": "Shadow_Reveal" }`, used by shadow lieutenant,
 | recipe: "result_eocs"                            | crafter (Character)         | NONE                        |
 | monster weakpoint: "effect_on_conditions"        | attacker (Creature, if exists, otherwise NONE) | victim (Creature) | note that if weakpoint was hit without attacker, EoC would be built without alpha talker, so using EoC referencing `u_` would result in error. Use `has_alpha` condition before manipulating alpha talker
 | monster death: "death_function"                  | killer (Creature, if exists, otherwise NONE)| victim (Creature) | Note that if monster was killed without a killer (falling anvil, explosion of a bomb etc), EoC would be built without alpha talker, so using EoC referencing `u_` would result in error. Use `has_alpha` condition before manipulating alpha talker
-| ammo_effect: "eoc"                               | shooter (Creature)          | victim (if exist, otherwise NONE) (Creature) | `proj_damage`, int, amount of damage projectile dealt. Detonation via SPECIAL_COOKOFF ammo effect return `proj_damage` as 1. Note that if projectile miss the target, EoC would be built without beta talker, so using EoC referencing `npc_` or `n_` would result in error. Use `has_beta` condition before manipulating npc
+| ammo_effect: "eoc"                               | shooter (Creature)          | victim (if exist, otherwise NONE) (Creature) | `targeted_location`: location_variable, the tile impacted by the projectile, `proj_damage`: int, amount of damage projectile dealt. Detonation via SPECIAL_COOKOFF ammo effect return `proj_damage` as 1. Note that if projectile miss the target, EoC would be built without beta talker, so using EoC referencing `npc_` or `n_` would result in error. Use `has_beta` condition before manipulating npc
 
 Some actions sent additional context variables, that can be used in EoC, in format:
 
@@ -603,6 +603,22 @@ Check if `map_cache` contain value `has`, `lack` or `read`
 
 #### Examples
 
+### `mod_is_loaded`
+- type: string
+- Return true if mod_id is loaded
+
+#### Valid talkers:
+
+| Avatar | NPC | Monster | Furniture | Item | Vehicle |
+| ------ | --------- | ---- | ------- | --- | ---- |
+| ✔️ | ❌ | ❌ | ❌ | ❌ | ❌ |
+
+#### Examples
+True if the world has Sky Island loaded
+```jsonc
+{ "mod_is_loaded": "sky_island" }
+```
+
 Check if two variables are `yes`
 ```jsonc
 "compare_string": [ "yes", { "context_val": "some_context_should_be_yes" }, { "context_val": "some_another_context_also_should_be_yes" } ]
@@ -718,8 +734,8 @@ check do you have 3 manuals in inventory
 - type: [variable object](#variable-object)
 - return true if alpha or beta talker has software specified as `item` in one of the devices in their inventory
 - `item` - the software we are looking for
-- `charges` - optionally, the device in which the software is found has to have at least this number of charges or be plugged into a power grid (if omitted or 0, devices with no charges are matched too)
-- `device` - optionally, match only the software in this device
+- `charges` - optional, the device in which the software is found has to have at least this number of charges or be plugged into a power grid (if omitted or 0, devices with no charges are matched too)
+- `device` - optional, match only the software in this device
 
 #### Valid talkers:
 
@@ -1156,6 +1172,26 @@ You can hear
 { "not": "u_is_deaf" }
 ```
 
+### `u_is_swimming`, `npc_is_swimming`
+- type: simple string
+- return true if alpha or beta talker is currently swimming 
+
+#### Valid talkers:
+
+| Avatar | NPC | Monster | Furniture | Item | Vehicle |
+| ------ | --------- | ---- | ------- | --- | ---- |
+| ✔️ | ❌ | ✔️ | ❌ | ❌ | ❌ |
+
+#### Examples
+
+```jsonc
+"u_is_swimming"
+```
+=
+```jsonc
+{ "not": "u_is_swimming" }
+```
+
 ### `u_is_alive`, `npc_is_alive`
 - type: simple string
 - return true if alpha or beta talker is not dead
@@ -1327,6 +1363,19 @@ Runs a query, allowing you to pick specific tile around. When picked, stores coo
   "effect": [ { "u_message": "it is a grass" } ],
   "false_effect": [ { "u_message": "it is NOT a grass" } ]
 }
+```
+
+### `map_is_passable`
+- type: [location variable](#location-variable)
+- returns true if the map tile at that location is passable
+
+#### Valid talkers:
+
+No talker is needed.
+
+#### Examples
+```jsonc
+{ "map_is_passable": { "context_val": "loc" } }
 ```
 
 ### `map_in_city`
@@ -2590,8 +2639,8 @@ NPC run EoCs, provided by this effect; can work outside of reality bubble
 | Syntax | Optionality | Value  | Info |
 | --- | --- | --- | --- |
 | "u_run_npc_eocs"/ "npc_run_npc_eocs" | **mandatory** | array of eocs | EoCs that would be run by NPCs |
-| "unique_ids" | optional | string, [variable objects](#variable-object) or array | id of NPCs that would be affected; lack of ids make effect run EoC on every NPC in your reality bubble, if `"local": true`, and to every NPC in the world, if `"local": false`; unique ID of every npc is specified in mapgen, using `npcs` or `place_npcs` |
-| "local" | optional | boolean | default false; if true, the effect is run for every NPC in the world; if false, effect is run only to NPC in your reality bubble |
+| "unique_ids" | optional | string, [variable objects](#variable-object) or array | id of NPCs that would be affected; lack of ids make effect run EoC on every NPC in your reality bubble if `"local": true`, and to every NPC in the world if `"local": false`; unique ID of every npc is specified in mapgen, using `npcs` or `place_npcs` |
+| "local" | optional | boolean | default false; if true, the effect is run for every NPC in your reality bubble; if false, effect is run for every NPC in the world |
 | "npc_range" | optional | int or [variable object](#variable-object) | if used and neither 'z_min' nor 'z_max' is specified, only NPC having the same z position as the player in this range are affected |
 | "z_min" | optional | int or [variable object](#variable-object) | if used, only NPC'z position >= z_min are affected |
 | "z_max" | optional | int or [variable object](#variable-object) | if used, only NPC'z position <= z_max are affected |
@@ -3184,6 +3233,99 @@ you can pick one of four options from `Choose your destiny` list;
 
 ## Character effects
 
+#### `u_pick_bodypart`, `npc_pick_bodypart`
+
+Allow to select the bodypart and store it in variable
+
+| Syntax | Optionality | Value  | Info |
+| --- | --- | --- | --- |
+| "u_pick_bodypart", "npc_pick_bodypart" | **mandatory** | [variable object](#variable-object) | variable where the bodypart will be stored |
+| "whitelist_flag" | optional | string or [variable object](#variable-object) | If used, only bodyparts that has this flag will be allowed |
+| "blacklist_flag" | optional | string or [variable object](#variable-object) | If used, bodyparts that has this flag are excluded |
+| "whitelist_type" | optional | array of strings or [variable objects](#variable-object) | If used, only bodyparts of this type will be allowed |
+| "blacklist_type" | optional | array of strings or [variable objects](#variable-object) | If used, bodyparts of this type are excluded |
+| "wounded" | optional | bool | default unset; if true, only bodyparts that have wounds are allowed; if false, such bodyparts are excluded |
+| "pick_random" | optional | bool | default false; if true, or if talker is not an avatar, no selector will appear, and a random bodypart out of the possible will be assigned; if false, the list will appear, allowing to pick the limb manually |
+| "allow_cancel" | optional | bool | allows the menu to be cancelled |
+| "title" | optional | string or [variable object](#variable-object) | title of the menu that appears if pick_random is false |
+
+##### Valid talkers:
+
+| Avatar | NPC | Monster | Furniture | Item | Vehicle |
+| ------ | --- | ---- | ------- | --- | ---- |
+| ✔️ | ✔️ | ❌ | ❌ | ❌ | ❌ |
+
+##### Examples
+
+Allows to pick any bodypart and store it in context val `bp`
+```jsonc
+  {
+    "type": "effect_on_condition",
+    "id": "Test",
+    "effect": [ { "u_pick_bodypart": { "context_val": "bp" } } ]
+  },
+```
+
+#### `u_add_wound`, `npc_add_wound`
+
+Adds a specific wound on specific bodypart
+
+| Syntax | Optionality | Value  | Info |
+| --- | --- | --- | --- |
+| "u_add_wound", "npc_add_wound" | **mandatory** | string or [variable object](#variable-object) | id of a bodypart where the wound should be added |
+| "wound_id" | optional | string or [variable object](#variable-object) | id of a wound that will be applied |
+
+##### Valid talkers:
+
+| Avatar | NPC | Monster | Furniture | Item | Vehicle |
+| ------ | --- | ---- | ------- | --- | ---- |
+| ✔️ | ✔️ | ❌ | ❌ | ❌ | ❌ |
+
+##### Examples
+
+Adds deep_scratch to bodypart alpha talker picks from
+```jsonc
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_ADD_WOUND",
+    "effect": [
+      { "u_pick_bodypart": { "context_val": "bp" } },
+      { "u_add_wound": { "context_val": "bp" }, "wound_id": "deep_scratch" },
+      { "u_message": "Added deep_scratch wound to <context_val:bp>" }
+    ]
+  }
+```
+
+#### `u_remove_wound`, `npc_remove_wound`
+
+Removes specifc wounds from a specific bodypart
+
+| Syntax | Optionality | Value  | Info |
+| --- | --- | --- | --- |
+| "u_remove_wound", "npc_remove_wound" | **mandatory** | string or [variable object](#variable-object) | id of a bodypart where the wound should be added |
+| "wound_id" | optional | array of strings or [variable objects](#variable-object) | id of a wounds that will be removed |
+
+##### Valid talkers:
+
+| Avatar | NPC | Monster | Furniture | Item | Vehicle |
+| ------ | --- | ---- | ------- | --- | ---- |
+| ✔️ | ✔️ | ❌ | ❌ | ❌ | ❌ |
+
+##### Examples
+
+Removes all scratch and deep_scratch wounds from bodypart alpha talker picks from
+```jsonc
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_REMOVE_WOUND",
+    "effect": [
+      { "u_pick_bodypart": { "context_val": "bp" } },
+      { "u_remove_wound": { "context_val": "bp" }, "wound_id": [ "scratch", "deep_scratch" ] },
+      { "u_message": "Removed scratch and deep_scratch wounds from <context_val:bp>" }
+    ]
+  }
+```
+
 #### `u_deal_damage`, `npc_deal_damage`
 
 Deal damage, the same way melee attack deals damage; it can't be dodged, but it can be mitigated by armor
@@ -3444,6 +3586,27 @@ Character or NPC got trait or mutation removed, if it has one
 mutation, stored in `mutation_id`  context value, is removed from character:
 ```jsonc
 { "u_lose_trait": { "context_val": "mutation_id" } }
+```
+
+
+#### `u_lose_category`, `npc_lose_category`
+Character or NPC will have all traits of the specified category removed, if they have them
+
+| Syntax | Optionality | Value  | Info |
+| --- | --- | --- | --- |
+| "u_lose_category" / "npc_lose_category" | **mandatory** | string or [variable object](#variable-object) | id of mutation category to be removed; if character or NPC has no such mutation, nothing happens |
+
+##### Valid talkers:
+
+| Avatar | NPC | Monster | Furniture | Item | Vehicle |
+| ------ | --------- | ---- | ------- | --- | ---- |
+| ✔️ | ✔️ | ❌ | ❌ | ❌ | ❌ |
+
+##### Examples
+
+`URSINE` mutations are removed from character:
+```jsonc
+{ "u_lose_category": "URSINE" }
 ```
 
 
@@ -4154,24 +4317,72 @@ Would pick a random swear from `<swear>` snippet, and always would be the same (
 ```
 
 
-#### `u_mod_healthy`, `npc_mod_healthy`
-Increases or decreases your healthiness (respond for disease immunity and regeneration).
+#### `u_add_addiction`, `npc_add_addiction`, `u_lose_addiction`, `npc_lose_addiction`
+Adds an addiction with the supplied strength, or removes an addiction entirely.
 
-| Syntax | Optionality | Value  | Info |
+| Syntax | Optionality | Value | Info |
 | --- | --- | --- | --- |
-| "u_mod_healthy" / "npc_mod_healthy" | **mandatory** | int, float or [variable object](#variable-object) | Amount of health to be added |
-| "cap" | optional | int, float or [variable object](#variable-object) | cap for healthiness, beyond which it can't go further |
+| "u_add_addiction" / "npc_add_addiction" | **mandatory** | string or [variable object](#variable-object) | addiction type to add |
+| "strength" | **mandatory** | int, float or [variable object](#variable-object) | addiction strength passed to the normal addiction system |
+| "u_lose_addiction" / "npc_lose_addiction" | **mandatory** | string or [variable object](#variable-object) | addiction type to remove |
 
-##### Valid talkers:
-
-| Avatar | NPC | Monster | Furniture | Item | Vehicle |
-| ------ | --------- | ---- | ------- | --- | ---- |
-| ✔️ | ✔️ | ❌ | ❌ | ❌ | ❌ |
-
-##### Examples
-Your health is decreased by 1, but not smaller than -200
 ```jsonc
-{ "u_mod_healthy": -1, "cap": -200 }
+{ "u_add_addiction": "nicotine", "strength": 10 }
+{ "u_lose_addiction": "nicotine" }
+```
+
+#### `u_vomit`, `npc_vomit`
+Makes the character vomit.
+
+```jsonc
+"u_vomit"
+```
+
+#### `u_fall_asleep`, `npc_fall_asleep`
+Makes the character fall asleep for the given duration.
+This can cancel the character's current activity.  When called from a consumption EOC, queue a separate EOC with `run_eocs` and `"time_in_future": 0` so the consume activity finishes before falling asleep.
+
+```jsonc
+{ "u_fall_asleep": "2 hours" }
+```
+
+#### `u_heal_all`, `npc_heal_all`, `u_hurt_all`, `npc_hurt_all`
+Heals or damages every body part by the given amount.  `u_hurt_all` uses the normal all-body damage and pain handling.
+
+```jsonc
+{ "u_heal_all": 4 }
+{ "u_hurt_all": { "math": [ "rng( 10, 20 )" ] } }
+```
+
+#### `u_fill_stomach`, `npc_fill_stomach`
+Fills the character's stomach up to a fraction of its current capacity, adding the specified calories for each milliliter added.  `true_eocs` run if anything was added; otherwise `false_eocs` run.
+
+| Syntax | Optionality | Value | Info |
+| --- | --- | --- | --- |
+| "u_fill_stomach" / "npc_fill_stomach" | **mandatory** | float or [variable object](#variable-object) | target fraction of stomach capacity |
+| "calories_per_ml" | **mandatory** | int, float or [variable object](#variable-object) | calories added per milliliter |
+| "true_eocs" / "false_eocs" | optional | EOC or array of EOCs | results for a successful fill or an already-full stomach |
+
+```jsonc
+{ "u_fill_stomach": 0.25, "calories_per_ml": 2, "true_eocs": "EOC_FILLED" }
+```
+
+#### `u_marlossify`, `npc_marlossify`
+Applies the normal fungal Marloss transformation to the character's tile when used as a string.  The object form takes a location variable instead.
+
+```jsonc
+"u_marlossify"
+{ "u_marlossify": { "context_val": "loc" } }
+```
+
+#### `u_add_memorial`, `npc_add_memorial`
+Adds an entry to the avatar's memorial log.  The value is the male translation; `female` optionally supplies the female translation and defaults to the same text.
+
+```jsonc
+{
+  "u_add_memorial": { "str": "Found something strange.", "ctxt": "memorial_male" },
+  "female": { "str": "Found something strange.", "ctxt": "memorial_female" }
+}
 ```
 
 
@@ -4943,7 +5154,6 @@ If the target is an item, it will be deleted.
 | --- | --- | --- | --- |
 | "remove_corpse" | optional | bool | default false; if true, the corpse and all inside of it won't be spawned on death |
 | "supress_message" | optional | bool | default false; if true, death would omit death message |
-| "remove_from_creature_tracker" | optional | bool | default false; if true, and talker is monster, the monster instead removed from creature tracker, resulting not only in monster disappearing without message and corpse, but also bypasses any death effect they could fire before their death |
 
 ##### Valid talkers:
 
@@ -5496,17 +5706,89 @@ Spawn 2 hallucination `portal_person`s, outdoor, 3-5 tiles around the player, fo
 }
 ```
 
+#### `set_trap`
+Spawn a trap around target coordinates.
+
+| Syntax | Optionality | Value  | Info |
+| --- | --- | --- | --- |
+| "set_trap" | **mandatory** | string or [variable object](#variable-object) | id of trap to spawn |
+| "location" | **mandatory** | [variable object](#variable-object) | the trap would spawn from this location |
+| "radius" | optional | int, [variable object](#variable-object) or value between two | default 1; radius in which all traps will be spawned |
+| "square" | optional | boolean | default false; if true, the field spawned will be a square, otherwise it will be a circle |
+
+##### Examples
+Select the area, and spawn bear traps 5 tiles around it
+```jsonc
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_PLACE_TRAP",
+    "effect": [
+      { "u_query_tile": "anywhere", "target_var": { "context_val": "pos" }, "message": "Select point" },
+      { "set_trap": "tr_beartrap", "location": { "context_val": "pos" }, "radius": 5 }
+    ]
+  }
+```
+
+#### `set_terrain`
+Spawn a terrain around target coordinates.
+
+| Syntax | Optionality | Value  | Info |
+| --- | --- | --- | --- |
+| "set_terrain" | **mandatory** | string or [variable object](#variable-object) | id of terrain to spawn |
+| "location" | **mandatory** | [variable object](#variable-object) | the trap would spawn from this location |
+| "radius" | optional | int, [variable object](#variable-object) or value between two | default 1; radius in which all terrain will be spawned |
+| "avoid_creatures" | optional | boolean | default false; if true, terrain will not be spawned if some other creature stands on it |
+| "square" | optional | boolean | default false; if true, the field spawned will be a square, otherwise it will be a circle |
+
+##### Examples
+Select the area, and spawn thin ice 5 tiles around it
+```jsonc
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_PLACE_TERRAIN",
+    "effect": [
+      { "u_query_tile": "anywhere", "target_var": { "context_val": "pos" }, "message": "Select point" },
+      { "set_terrain": "t_ice_sh_thin", "location": { "context_val": "pos" }, "radius": 5 }
+    ]
+  }
+```
+
+#### `set_furniture`
+Spawn a furniture around target coordinates.
+
+| Syntax | Optionality | Value  | Info |
+| --- | --- | --- | --- |
+| "set_furniture" | **mandatory** | string or [variable object](#variable-object) | id of furniture to spawn |
+| "location" | **mandatory** | [variable object](#variable-object) | the trap would spawn from this location |
+| "radius" | optional | int, [variable object](#variable-object) or value between two | default 1; radius in which all furniture will be spawned |
+| "avoid_creatures" | optional | boolean | default false; if true, furniture will not be spawned if some other creature stands on it |
+| "square" | optional | boolean | default false; if true, the field spawned will be a square, otherwise it will be a circle |
+
+##### Examples
+Select the area, and spawn tables 5 tiles around it
+```jsonc
+  {
+    "type": "effect_on_condition",
+    "id": "EOC_PLACE_FURNITURE",
+    "effect": [
+      { "u_query_tile": "anywhere", "target_var": { "context_val": "pos" }, "message": "Select point" },
+      { "set_furniture": "f_table", "location": { "context_val": "pos" }, "radius": 5 }
+    ]
+  }
+```
+
 #### `u_set_field`, `npc_set_field`
-spawn a field in a square around player. it is recommended to not use it in favor of `u_transform_radius` or `u_emit` if possible
+Spawn a field around player or target coordinates.
 
 | Syntax | Optionality | Value  | Info |
 | --- | --- | --- | --- |
 | "u_set_field", "npc_set_field" | **mandatory** | string or [variable object](#variable-object) | id of field to spawn around the player |
-| "intensity" | optional | int, [variable object](#variable-object) or value between two | default 1; intensity of field to spawn |
-| "radius" | optional | int, [variable object](#variable-object) or value between two | default 10000000; radius of a field to spawn |
-| "age" | optional | int, duration, [variable object](#variable-object) or value between two | how long the field would last |
+| "intensity" | optional | int, [variable object](#variable-object) or value between two | default 1; intensity of field to spawn. Each field evaluate intensity separately, so `[1, 5]` would spawn fields of intensity from 1 to 5 |
+| "radius" | optional | int, [variable object](#variable-object) or value between two | default 1; radius of a field to spawn |
+| "age" | optional | int, duration, [variable object](#variable-object) or value between two | default 1 second; how long the field would last. Each field evaluate age separately |
 | "outdoor_only"/ "indoor_only" | optional | boolean | default false; if used, field would be spawned only outside or only inside buildings |
 | "hit_player" | optional | boolean | default true; if field spawn where the player is, process like player stepped on this field |
+| "square" | optional | boolean | default false; if true, the field spawned will be a square, otherwise it will be a circle |
 | "target_var" | optional | [variable object](#variable-object) | if used, the field would spawn from this location instead of you or NPC |
 
 ##### Examples

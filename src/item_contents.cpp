@@ -7,6 +7,7 @@
 #include <iterator>
 #include <map>
 #include <numeric>
+#include <optional>
 #include <ostream>
 #include <string>
 #include <tuple>
@@ -25,7 +26,6 @@
 #include "input_context.h"
 #include "input_enums.h"
 #include "input_popup.h"
-#include "inventory.h"
 #include "item.h"
 #include "item_category.h"
 #include "item_factory.h"
@@ -37,6 +37,7 @@
 #include "map.h"
 #include "output.h"
 #include "string_formatter.h"
+#include "temp_crafting_inventory.h"
 #include "translation.h"
 #include "translations.h"
 #include "uilist.h"
@@ -46,10 +47,12 @@ static const flag_id json_flag_CASING( "CASING" );
 static const flag_id json_flag_MAG_DESTROY( "MAG_DESTROY" );
 static const flag_id json_flag_MAG_EJECT( "MAG_EJECT" );
 
+namespace
+{
 class pocket_favorite_callback : public uilist_callback
 {
     private:
-        std::vector<std::tuple<item_pocket *, int, uilist_entry *>> saved_pockets;
+        std::vector<std::tuple<item_pocket *, int, uilist_entry *, item_location>> saved_pockets;
         // whitelist or blacklist, for interactions
         bool whitelist = true;
         std::pair<item *, item_pocket *> item_to_move = { nullptr, nullptr };
@@ -59,16 +62,16 @@ class pocket_favorite_callback : public uilist_callback
         std::string uilist_text;
 
         // items to create pockets for
-        std::vector<item *> to_organize;
+        std::vector<item_location> to_organize;
 
         void move_item( uilist *menu, item_pocket *selected_pocket );
 
         void refresh_columns( uilist *menu );
 
-        void add_pockets( item &i, uilist &pocket_selector, const std::string &depth );
+        void add_pockets( item_location il, uilist &pocket_selector, const std::string &depth );
     public:
         explicit pocket_favorite_callback( const std::string &uilist_text,
-                                           const std::vector<item *> &to_organize,
+                                           const std::vector<item_location> &to_organize,
                                            uilist &pocket_selector );
         void refresh( uilist *menu ) override;
         float desired_extra_space_right( ) override {
@@ -77,6 +80,7 @@ class pocket_favorite_callback : public uilist_callback
         }
         bool key( const input_context &, const input_event &event, int entnum, uilist *menu ) override;
 };
+} // namespace
 
 void pocket_favorite_callback::refresh( uilist *menu )
 {
@@ -88,7 +92,7 @@ void pocket_favorite_callback::refresh( uilist *menu )
     item_pocket *selected_pocket = nullptr;
     int i = 0;
     int pocket_num = 0;
-    for( std::tuple<item_pocket *, int, uilist_entry *> &pocket_val : saved_pockets ) {
+    for( std::tuple<item_pocket *, int, uilist_entry *, item_location> &pocket_val : saved_pockets ) {
         item_pocket *pocket = std::get<0>( pocket_val );
         if( pocket == nullptr || ( pocket->get_pocket_data()  &&
                                    !pocket->is_type( pocket_type::CONTAINER ) ) ) {
@@ -132,17 +136,19 @@ void pocket_favorite_callback::refresh( uilist *menu )
 }
 
 pocket_favorite_callback::pocket_favorite_callback( const std::string &uilist_text,
-        const std::vector<item *> &to_organize, uilist &pocket_selector )
+        const std::vector<item_location> &to_organize, uilist &pocket_selector )
     : uilist_text( uilist_text ), to_organize( to_organize )
 {
-    for( item *i : to_organize ) {
-        add_pockets( *i, pocket_selector, "" );
+    for( const item_location &il : to_organize ) {
+        add_pockets( il, pocket_selector, "" );
     }
 }
 
-void pocket_favorite_callback::add_pockets( item &i, uilist &pocket_selector,
+void pocket_favorite_callback::add_pockets( item_location il,
+        uilist &pocket_selector,
         const std::string &depth )
 {
+    item &i = *il;
     if( i.get_container_pockets().empty() ) {
         // if it doesn't have pockets skip it
         return;
@@ -150,12 +156,7 @@ void pocket_favorite_callback::add_pockets( item &i, uilist &pocket_selector,
 
     pocket_selector.addentry( -1, false, '\0', string_format( "%s%s", depth, i.display_name() ) );
     // pad list with empty entries for the items themselves
-    saved_pockets.emplace_back( nullptr, 0, nullptr );
-    if( ( i.is_collapsed() && to_organize.size() != 1 ) || i.all_pockets_sealed() ) {
-        //is collapsed, or all pockets are sealed skip its nested pockets
-        // only skip collapsed items if doing multi menu, for a single item this wouldn't make sense
-        return;
-    }
+    saved_pockets.emplace_back( nullptr, 0, nullptr, item_location() );
 
     uilist_entry *item_entry = &pocket_selector.entries.back();
     int pocket_num = 1;
@@ -168,13 +169,13 @@ void pocket_favorite_callback::add_pockets( item &i, uilist &pocket_selector,
                                   vol_to_info( "", "", it_pocket->contents_volume() ).sValue,
                                   vol_to_info( "", "", it_pocket->volume_capacity() ).sValue ) );
         // pocket number is displayed from 1 stored from 0
-        saved_pockets.emplace_back( it_pocket, pocket_num - 1, item_entry );
+        saved_pockets.emplace_back( it_pocket, pocket_num - 1, item_entry, il );
         pocket_num++;
 
         // display the items
         for( item *it : it_pocket->all_items_top() ) {
             // check for pockets in that pocket
-            add_pockets( *it, pocket_selector, depth + "  " );
+            add_pockets( item_location( il, it ), pocket_selector, depth + "  " );
         }
     }
 }
@@ -185,11 +186,29 @@ void pocket_favorite_callback::refresh_columns( uilist *menu )
     // clear all but one entry repopulate then delete that initial
     menu->entries.clear();
     saved_pockets.clear();
-    for( item *i : to_organize ) {
-        add_pockets( *i, *menu, "" );
+    for( const item_location &il : to_organize ) {
+        add_pockets( il, *menu, "" );
     }
     // there might be a better way to refresh this
     menu->setup();
+}
+
+/**
+ * Return true, if item_pocket* needle is (eventually) in item* haystack.
+ */
+static bool is_pocket_in_item( const item *haystack, const item_pocket *needle )
+{
+    for( const item_pocket *pocket : haystack->get_standard_pockets() ) {
+        if( needle == pocket ) {
+            return true;
+        }
+        for( const item *itm : pocket->all_items_top() ) {
+            if( is_pocket_in_item( itm, needle ) ) {
+                return true;
+            }
+        }
+    }
+    return false;
 }
 
 void pocket_favorite_callback::move_item( uilist *menu, item_pocket *selected_pocket )
@@ -239,12 +258,15 @@ void pocket_favorite_callback::move_item( uilist *menu, item_pocket *selected_po
                 }
 
                 // make sure we dont try to put anything in itself
-                if( entry.enabled ) {
-                    for( item_pocket *pocket : item_to_move.first->get_standard_pockets() ) {
-                        if( std::get<0>( *itt ) == pocket ) {
-                            entry.enabled = false;
-                        }
-                    }
+                if( entry.enabled && is_pocket_in_item( item_to_move.first, std::get<0>( *itt ) ) ) {
+                    entry.enabled = false;
+                }
+
+                // parent can contain
+                if( entry.enabled
+                    && !std::get<3>( *itt ).parents_can_contain_recursive( item_to_move.first ).success()
+                  ) {
+                    entry.enabled = false;
                 }
 
                 // move through the pockets as you process entries
@@ -284,7 +306,7 @@ bool pocket_favorite_callback::key( const input_context &ctxt, const input_event
     item_pocket *selected_pocket = nullptr;
     int i = 0;
     int pocket_num = 0;
-    for( std::tuple<item_pocket *, int, uilist_entry *> &pocket_val : saved_pockets ) {
+    for( std::tuple<item_pocket *, int, uilist_entry *, item_location> &pocket_val : saved_pockets ) {
         item_pocket *pocket = std::get<0>( pocket_val );
         if( pocket == nullptr || ( pocket->get_pocket_data()  &&
                                    !pocket->is_type( pocket_type::CONTAINER ) ) ) {
@@ -339,9 +361,12 @@ bool pocket_favorite_callback::key( const input_context &ctxt, const input_event
         cata::flat_set<itype_id> nearby_itypes;
         uilist selector_menu;
         selector_menu.title = _( "Select an item from nearby" );
-        for( const std::list<item> *it_list : get_player_character().crafting_inventory().const_slice() ) {
-            nearby_itypes.insert( it_list->front().typeId() );
+        get_player_character().crafting_inventory().visit_items(
+        [&]( item_location node ) {
+            nearby_itypes.insert( node->typeId() );
+            return VisitResponse::NEXT;
         }
+        );
 
         std::vector<std::pair<itype_id, std::string>> listed_names;
         std::vector<std::pair<itype_id, std::string>> nearby_names;
@@ -1036,7 +1061,9 @@ std::set<flag_id> item_contents::magazine_flag_restrictions() const
     std::set<flag_id> ret;
     for( const item_pocket &pocket : contents ) {
         if( pocket.is_type( pocket_type::MAGAZINE_WELL ) ) {
-            ret = pocket.get_pocket_data()->get_flag_restrictions();
+            const pocket_data::FlagsSetType &src = pocket.get_pocket_data()->get_flag_restrictions();
+            ret.clear();
+            ret.insert( src.begin(), src.end() );
         }
     }
     return ret;
@@ -1341,6 +1368,41 @@ int item_contents::ammo_consume( int qty, map *here, const tripoint_bub_ms &pos,
     return consumed;
 }
 
+int item_contents::ammo_consume_in_pocket( const std::string &id, int qty, map *here,
+        const tripoint_bub_ms &pos )
+{
+    if( id.empty() || qty <= 0 ) {
+        return 0;
+    }
+    for( item_pocket &pocket : contents ) {
+        const pocket_data *pd = pocket.get_pocket_data();
+        if( pd == nullptr || pd->pocket_id != id ) {
+            continue;
+        }
+        if( pocket.is_type( pocket_type::MAGAZINE_WELL ) ) {
+            item *mag = pocket.magazine_current();
+            if( mag == nullptr ) {
+                return 0;
+            }
+            const int res = mag->ammo_consume( qty, *here, pos, nullptr );
+            if( res && mag->ammo_remaining() == 0 ) {
+                if( mag->has_flag( json_flag_MAG_DESTROY ) ) {
+                    pocket.remove_item( *mag );
+                } else if( mag->has_flag( json_flag_MAG_EJECT ) ) {
+                    here->add_item( pos, *mag );
+                    pocket.remove_item( *mag );
+                }
+            }
+            return res;
+        }
+        if( pocket.is_type( pocket_type::MAGAZINE ) ) {
+            return pocket.ammo_consume( qty );
+        }
+        return 0;
+    }
+    return 0;
+}
+
 item *item_contents::magazine_current()
 {
     for( item_pocket &pocket : contents ) {
@@ -1545,6 +1607,20 @@ void item_contents::clear_items()
     }
 }
 
+void item_contents::begin_bulk_fill()
+{
+    for( item_pocket &pocket : contents ) {
+        pocket.begin_bulk_fill();
+    }
+}
+
+void item_contents::end_bulk_fill()
+{
+    for( item_pocket &pocket : contents ) {
+        pocket.end_bulk_fill();
+    }
+}
+
 void item_contents::clear_magazines()
 {
     for( item_pocket &pocket : contents ) {
@@ -1569,18 +1645,6 @@ void item_contents::update_open_pockets()
         if( pocket.empty() ) {
             pocket.unseal();
         }
-    }
-}
-
-void item_contents::set_item_defaults()
-{
-    /* For Items with a magazine or battery in its contents */
-    for( item_pocket &pocket : contents ) {
-        if( !pocket.is_standard_type() ) {
-            continue;
-        }
-
-        pocket.set_item_defaults();
     }
 }
 
@@ -2069,6 +2133,17 @@ std::vector<const item *> item_contents::efiles() const
     return efiles;
 }
 
+units::ememory item_contents::occupied_ememory() const
+{
+    units::ememory total = 0_KB;
+    for( const item_pocket &pocket : contents ) {
+        if( pocket.is_type( pocket_type::E_FILE_STORAGE ) ) {
+            total += pocket.occupied_ememory();
+        }
+    }
+    return total;
+}
+
 std::vector<item *> item_contents::cables()
 {
     std::vector<item *> cables;
@@ -2096,10 +2171,9 @@ std::vector<const item *> item_contents::cables() const
 }
 
 void item_contents::update_modified_pockets(
-    const std::optional<const pocket_data *> &mag_or_mag_well,
+    std::vector<const pocket_data *> mag_or_mag_wells,
     std::vector<const pocket_data *> container_pockets )
 {
-    bool mag_or_well_found = false;
     for( auto pocket_iter = contents.begin(); pocket_iter != contents.end(); ) {
         item_pocket &pocket = *pocket_iter;
         if( pocket.is_type( pocket_type::CONTAINER ) ) {
@@ -2133,19 +2207,21 @@ void item_contents::update_modified_pockets(
 
         } else if( pocket.is_type( pocket_type::MAGAZINE ) ||
                    pocket.is_type( pocket_type::MAGAZINE_WELL ) ) {
-            if( mag_or_mag_well ) {
-                if( pocket.get_pocket_data() != *mag_or_mag_well ) {
-                    if( !pocket.empty() ) {
-                        // in case the debugmsg wasn't clear, this should never happen
-                        debugmsg( "Oops!  deleted some items when updating pockets that were added via toolmods" );
-                    }
-                    pocket_iter = contents.erase( pocket_iter );
-                } else {
-                    mag_or_well_found = true;
-                    ++pocket_iter;
+            const pocket_data *current = pocket.get_pocket_data();
+            bool matched = false;
+            for( auto it = mag_or_mag_wells.begin(); it != mag_or_mag_wells.end(); ++it ) {
+                if( *it == current ) {
+                    mag_or_mag_wells.erase( it );
+                    matched = true;
+                    break;
                 }
+            }
+            if( matched ) {
+                ++pocket_iter;
             } else {
-                // no mag or mag well, so it needs to be erased
+                if( !pocket.empty() ) {
+                    debugmsg( "Oops!  deleted some items when updating pockets that were added via toolmods" );
+                }
                 pocket_iter = contents.erase( pocket_iter );
             }
         } else {
@@ -2157,10 +2233,9 @@ void item_contents::update_modified_pockets(
     for( const pocket_data *container_pocket : container_pockets ) {
         contents.emplace_back( container_pocket );
     }
-    if( mag_or_mag_well && !mag_or_well_found ) {
-        contents.emplace_back( *mag_or_mag_well );
+    for( const pocket_data *mw : mag_or_mag_wells ) {
+        contents.emplace_back( mw );
     }
-
 }
 
 std::set<itype_id> item_contents::magazine_compatible() const
@@ -2187,6 +2262,17 @@ itype_id item_contents::magazine_default() const
         }
     }
     return itype_id::NULL_ID();
+}
+
+std::vector<itype_id> item_contents::magazines_default() const
+{
+    std::vector<itype_id> result;
+    for( const item_pocket &pocket : contents ) {
+        if( pocket.is_type( pocket_type::MAGAZINE_WELL ) ) {
+            result.push_back( pocket.magazine_default() );
+        }
+    }
+    return result;
 }
 
 units::mass item_contents::total_container_weight_capacity( const bool unrestricted_pockets_only )
@@ -2298,6 +2384,18 @@ std::vector<const item *> item_contents::get_added_pockets() const
 
     items_added.reserve( additional_pockets.size() );
     for( const item &it : additional_pockets ) {
+        items_added.push_back( &it );
+    }
+
+    return items_added;
+}
+
+std::vector<item *> item_contents::get_added_pockets_mutable()
+{
+    std::vector<item *> items_added;
+
+    items_added.reserve( additional_pockets.size() );
+    for( item &it : additional_pockets ) {
         items_added.push_back( &it );
     }
 
@@ -2874,14 +2972,15 @@ void item_contents::info( std::vector<iteminfo> &info, const iteminfo_query *par
     }
 }
 
-void item_contents::favorite_settings_menu( item *i )
+void item_contents::favorite_settings_menu( item_location il )
 {
-    std::vector<item *> to_organize;
-    to_organize.push_back( i );
-    pocket_management_menu( remove_color_tags( i->display_name() ), to_organize );
+    std::vector<item_location> to_organize;
+    to_organize.push_back( il );
+    pocket_management_menu( remove_color_tags( il->display_name() ), to_organize );
 }
 
-void pocket_management_menu( const std::string &title, const std::vector<item *> &to_organize )
+void pocket_management_menu( const std::string &title,
+                             const std::vector<item_location> &to_organize )
 {
     static const std::string input_category = "INVENTORY";
     input_context ctxt( input_category );

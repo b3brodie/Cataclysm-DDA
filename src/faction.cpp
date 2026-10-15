@@ -39,6 +39,7 @@ faction_template::faction_template()
     lone_wolf_faction = false;
     limited_area_claim = false;
     currency = itype_id::NULL_ID();
+    steal_persist = std::nullopt; // Default ask
 }
 
 faction::faction( const faction_template &templ )
@@ -362,6 +363,11 @@ std::string faction::food_supply_text() const
         return pgettext( "Faction food", "Malnourished" );
     }
     return pgettext( "Faction food", "Starving" );
+}
+
+bool faction::guaranteed_hostile() const
+{
+    return likes_u < -10;
 }
 
 nc_color faction::food_supply_color() const

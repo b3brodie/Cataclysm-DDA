@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <climits>
 #include <cstdlib>
+#include <functional>
 #include <map>
 #include <memory>
 #include <ostream>
@@ -29,7 +30,6 @@
 #include "game_inventory.h"
 #include "gun_mode.h"
 #include "input_context.h"
-#include "inventory.h"
 #include "item.h"
 #include "item_location.h"
 #include "item_pocket.h"
@@ -61,9 +61,11 @@
 #include "uilist.h"
 #include "veh_type.h"
 #include "vehicle.h"
+#include "visitable.h"
 #include "vpart_position.h"
 
 static const efftype_id effect_amigara( "amigara" );
+static const efftype_id effect_berserk( "berserk" );
 static const efftype_id effect_bile_irritant( "bile_irritant" );
 static const efftype_id effect_glowing( "glowing" );
 static const efftype_id effect_harnessed( "harnessed" );
@@ -72,7 +74,6 @@ static const efftype_id effect_incorporeal( "incorporeal" );
 static const efftype_id effect_onfire( "onfire" );
 static const efftype_id effect_pet( "pet" );
 static const efftype_id effect_psi_stunned( "psi_stunned" );
-static const efftype_id effect_quadruped_full( "quadruped_full" );
 static const efftype_id effect_ridden( "ridden" );
 static const efftype_id effect_stunned( "stunned" );
 static const efftype_id effect_winded( "winded" );
@@ -86,6 +87,7 @@ static const itype_id itype_underbrush( "underbrush" );
 
 static const json_character_flag json_flag_CANNOT_ATTACK( "CANNOT_ATTACK" );
 static const json_character_flag json_flag_CANNOT_MOVE( "CANNOT_MOVE" );
+static const json_character_flag json_flag_FLOTATION( "FLOTATION" );
 static const json_character_flag json_flag_ITEM_WATERPROOFING( "ITEM_WATERPROOFING" );
 static const json_character_flag json_flag_WATERWALKING( "WATERWALKING" );
 
@@ -122,18 +124,21 @@ static bool check_water_affect_items( avatar &you )
     std::vector<item_location> destroyed;
     std::vector<item_location> wet;
 
-    for( item_location &loc : you.all_items_loc() ) {
-        if( you.has_flag( json_flag_ITEM_WATERPROOFING ) ) {
-            break;
-        } else if( loc->has_flag( flag_WATER_DISSOLVE ) && !loc.protected_from_liquids() ) {
-            dissolved.emplace_back( loc );
-        } else if( loc->has_flag( flag_WATER_BREAK ) && !loc->is_broken()
-                   && !loc.protected_from_liquids() ) {
-            destroyed.emplace_back( loc );
-        } else if( loc->has_flag( flag_WATER_BREAK_ACTIVE ) && !loc->is_broken()
-                   && !loc.protected_from_liquids() ) {
-            wet.emplace_back( loc );
-        }
+
+    if( !you.has_flag( json_flag_ITEM_WATERPROOFING ) ) {
+        you.visit_items( [&dissolved, &destroyed, &wet]( const item_location & loc ) {
+            if( loc->has_flag( flag_WATER_DISSOLVE ) ) {
+                dissolved.emplace_back( loc );
+            } else if( loc->has_flag( flag_WATER_BREAK ) && !loc->is_broken() ) {
+                destroyed.emplace_back( loc );
+            } else if( loc->has_flag( flag_WATER_BREAK_ACTIVE ) && !loc->is_broken() ) {
+                wet.emplace_back( loc );
+            }
+            if( loc->is_watertight_container() && !loc->will_spill() ) {
+                return VisitResponse::SKIP;
+            }
+            return VisitResponse::NEXT;
+        } );
     }
 
     if( dissolved.empty() && destroyed.empty() && wet.empty() ) {
@@ -197,16 +202,6 @@ bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )
         return false;
     }
 
-    //TODO: Replace with dirtying vision_transparency_cache
-    //TODO: Really ugly bc we're not sure we're moving anywhere yet
-    const bool is_crouching = you.is_crouching();
-    const bool low_profile = you.has_effect( effect_quadruped_full ) &&
-                             you.is_running();
-    const bool is_prone = you.is_prone();
-    if( is_crouching || is_prone || low_profile ) {
-        m.set_transparency_cache_dirty( d.z() );
-    }
-
     // If any leg broken without crutches and not already on the ground topple over
     if( ( !you.enough_working_legs() && !you.is_prone() &&
           !( you.get_wielded_item() && you.get_wielded_item()->has_flag( flag_CRUTCHES ) ) ) ) {
@@ -240,6 +235,37 @@ bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )
     } else if( m.has_flag( ter_furn_flag::TFLAG_RAMP_DOWN, dest_loc ) ) {
         dest_loc.z() -= 1;
         via_ramp = true;
+    }
+
+    // Berserk creatures cannot voluntarily move farther away from visible hostiles.
+    if( you.has_effect( effect_berserk ) ) {
+        bool retreating = false;
+
+        get_creature_tracker().for_each_reachable( you, [&]( Creature * critter ) {
+            if( retreating || critter == &you ) {
+                return;
+            }
+
+            if( !you.sees( here, *critter ) ) {
+                return;
+            }
+
+            if( critter->attitude_to( you ) != Creature::Attitude::HOSTILE ) {
+                return;
+            }
+
+            const int current_dist = rl_dist( you_pos, critter->pos_bub() );
+            const int new_dist = rl_dist( dest_loc, critter->pos_bub() );
+
+            if( new_dist > current_dist ) {
+                retreating = true;
+            }
+        } );
+
+        if( retreating ) {
+            add_msg( m_info, _( "You are too enraged to retreat!" ) );
+            return false;
+        }
     }
 
     item_location weapon = you.get_wielded_item();
@@ -512,6 +538,10 @@ bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )
         return true;
     }
 
+    if( ( fromSwimmable || fromDeepWater ) && ( !toSwimmable || !toDeepWater || toBoat ) ) {
+        you.is_swimming = false;
+    }
+
     //Wooden Fence Gate (or equivalently walkable doors):
     // open it if we are walking
     // vault over it if we are running
@@ -572,6 +602,7 @@ bool avatar_action::move( avatar &you, map &m, const tripoint_rel_ms &d )
     if( g->phasing_move( dest_loc ) ) {
         return true;
     }
+    //TODO: use open_tile_activity_actor
     if( veh_closed_door ) {
         if( !veh1->handle_potential_theft( you ) ) {
             return true;
@@ -631,6 +662,8 @@ void avatar_action::swim( map &m, avatar &you, const tripoint_bub_ms &p )
 {
     map &here = get_map();
 
+    you.is_swimming = true;
+
     if( !m.has_flag( ter_furn_flag::TFLAG_SWIMMABLE, p ) ) {
         dbg( D_ERROR ) << "game:plswim: Tried to swim in "
                        << m.tername( p ) << "!";
@@ -661,7 +694,7 @@ void avatar_action::swim( map &m, avatar &you, const tripoint_bub_ms &p )
     int movecost = you.swim_speed();
     you.practice( skill_swimming, you.is_underwater() ? 2 : 1 );
     if( ( movecost >= 500 || you.has_effect( effect_winded ) ) &&
-        !you.has_flag( json_flag_WATERWALKING ) ) {
+        !you.has_flag( json_flag_WATERWALKING ) && !you.worn_with_flag( json_flag_FLOTATION ) ) {
         if( !you.is_underwater() &&
             !( you.shoe_type_count( itype_swim_fins ) == 2 ||
                ( you.shoe_type_count( itype_swim_fins ) == 1 && one_in( 2 ) ) ) ) {
@@ -700,7 +733,6 @@ void avatar_action::swim( map &m, avatar &you, const tripoint_bub_ms &p )
         m.board_vehicle( you.pos_bub(), &you );
     }
     you.mod_moves( -( ( movecost > 200 ? 200 : movecost ) * ( trigdist && diagonal ? M_SQRT2 : 1 ) ) );
-    you.inv->rust_iron_items();
 
     if( !you.is_mounted() ) {
         you.burn_move_stamina( movecost );
@@ -774,7 +806,12 @@ void avatar_action::autoattack( avatar &you, map &m )
         return;
     }
 
-    you.reach_attack( best.pos_bub() );
+    if( weapon && !you.used_weapon() && !weapon->is_gun() ) {
+        add_msg( m_info, _( "You can't use reach attacks while forcing yourself to fight unarmed." ) );
+        return;
+    } else {
+        you.reach_attack( best.pos_bub() );
+    }
 }
 
 // TODO: Move data/functions related to targeting out of game class
@@ -822,8 +859,10 @@ void avatar_action::fire_wielded_weapon( avatar &you )
         return;
     } else if( !weapon->is_gun() ) {
         return;
-    } else if( weapon->has_ammo_data() &&
+    } else if( !weapon->uses_firing_requirements() && weapon->has_ammo_data() &&
                !weapon->ammo_types().count( weapon->loaded_ammo().ammo_type() ) ) {
+        // Multimag guns enforce per-pocket ammo at load time; this gate is for
+        // single-mag guns whose accepted ammo can shift via gunmod conversion.
         add_msg( m_info, _( "The %s can't be fired while loaded with incompatible ammunition %s" ),
                  weapon->tname(), weapon->ammo_current()->nname( 1 ) );
         return;

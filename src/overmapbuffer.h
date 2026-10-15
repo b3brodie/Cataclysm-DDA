@@ -24,6 +24,7 @@
 #include "memory_fast.h"
 #include "overmap.h"
 #include "overmap_types.h"
+#include "overmap_worldgen.h"
 #include "point.h"
 #include "simple_pathfinding.h"
 #include "type_id.h"
@@ -37,6 +38,7 @@ class monster;
 class npc;
 class overmap_special;
 class vehicle;
+struct pp_resolved_generator;
 enum class cube_direction : int;
 enum class oter_travel_cost_type : int;
 namespace om_direction
@@ -68,6 +70,7 @@ struct overmap_path_params {
     static overmap_path_params for_land_vehicle( float offroad_coeff, bool tiny, bool amphibious );
     static overmap_path_params for_watercraft();
     static overmap_path_params for_aircraft();
+    static overmap_path_params flatten_pathfinding_costs( overmap_path_params orig );
 };
 
 struct radio_tower_reference {
@@ -185,6 +188,8 @@ struct overmap_global_state {
     int major_river_count = 0;
     // all highway intersections
     highway_intersection_grid highway_intersections;
+    // placed regions by overmap
+    std::unordered_map<tripoint_abs_om, region_settings_id> placed_regions;
 
     void clear();
     void reset();
@@ -199,6 +204,7 @@ class overmapbuffer
 
         bool externally_set_args = false;
         overmap_global_state global_state;
+        dimension_region_layout regions;
 
         static std::string terrain_filename( const point_abs_om & );
         static cata_path player_filename( const point_abs_om & );
@@ -230,6 +236,9 @@ class overmapbuffer
         const oter_id &ter_existing( const tripoint_abs_omt &p );
         void ter_set( const tripoint_abs_omt &p, const oter_id &id );
         std::optional<mapgen_arguments> *mapgen_args( const tripoint_abs_omt & );
+        // Persisted PP decisions for this OMT, or nullptr if not associated with a
+        // special with any overmap_special-scoped sub-generators.
+        std::vector<pp_resolved_generator> *pp_decisions( const tripoint_abs_omt & );
         std::string *join_used_at( const std::pair<tripoint_abs_omt, cube_direction> & );
         std::vector<oter_id> predecessors( const tripoint_abs_omt & );
         // pick an OMT, scan it from z level 10, and return the first level that is not air
@@ -269,8 +278,6 @@ class overmapbuffer
         std::string get_vehicle_ter_sym( const tripoint_abs_omt &omt );
         std::string get_vehicle_tile_id( const tripoint_abs_omt &omt );
         const region_settings &get_settings( const tripoint_abs_omt &p );
-        const region_settings &get_default_settings( const point_abs_om &p );
-        std::string current_region_type;
         /**
          * Accessors for horde introspection into overmaps.
          * Probably also useful for NPC overmap-scale navigation.
@@ -463,6 +470,11 @@ class overmapbuffer
         overmap_with_local_coords get_existing_om_global( const tripoint_abs_omt &p );
         overmap_with_local_coords get_om_global( const point_abs_omt &p );
         overmap_with_local_coords get_om_global( const tripoint_abs_omt &p );
+
+        // gets the region for the given overmap and current dimension
+        region_settings_id get_overmap_region( tripoint_abs_om om_point );
+        void print_region_layout();
+        void init_region_layout();
 
         /**
          * Pass global overmap coordinates (same as @ref get).

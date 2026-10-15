@@ -115,6 +115,8 @@ void scenario::load( const JsonObject &jo, std::string_view )
 
     optional( jo, was_loaded, "eoc", _eoc, auto_flags_reader<effect_on_condition_id> {} );
 
+    optional( jo, was_loaded, "origin_offset", origin_offset, point_rel_om::zero );
+
     if( !was_loaded ) {
 
         int _start_of_cataclysm_hour = 0;
@@ -582,7 +584,7 @@ bool scenario::get_reveal_locale() const
     return reveal_locale;
 }
 
-bool scenario::get_distance_initial_visibility() const
+int scenario::get_distance_initial_visibility() const
 {
     return distance_initial_visibility;
 }
@@ -726,8 +728,6 @@ bool scenario_sorter::operator()( const scenario *a, const scenario *b ) const
 
     if( !cities_enabled && a->has_flag( "CITY_START" ) != b->has_flag( "CITY_START" ) ) {
         return a->has_flag( "CITY_START" ) < b->has_flag( "CITY_START" );
-    } else if( sort_by_points ) {
-        return a->point_cost() < b->point_cost();
     } else {
         return localized_compare( a->gender_appropriate_name( male ),
                                   b->gender_appropriate_name( male ) );
@@ -741,6 +741,10 @@ bool scenario::has_map_extra() const
 const map_extra_id &scenario::get_map_extra() const
 {
     return _map_extra;
+}
+const point_rel_om &scenario::get_origin_offset() const
+{
+    return origin_offset;
 }
 const std::vector<mission_type_id> &scenario::missions() const
 {

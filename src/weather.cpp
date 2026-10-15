@@ -400,10 +400,6 @@ void wet_character( Character &target, int amount )
     if( !calendar::once_every( 6_seconds ) ) {
         return;
     }
-    std::map<bodypart_id, std::vector<const item *>> clothing_map;
-    for( const bodypart_id &bp : target.get_all_body_parts() ) {
-        clothing_map.emplace( bp, std::vector<const item *>() );
-    }
     std::map<bodypart_id, int> warmth_bp = target.worn.warmth( target );
     const int warmth_delay = warmth_bp[body_part_torso] * 0.8 +
                              warmth_bp[body_part_head] * 0.2;
@@ -422,7 +418,7 @@ void wet_character( Character &target, int amount )
     target.drench( amount, drenched_parts, false );
 }
 
-void weather_sound( const translation &sound_message, const std::string &sound_effect )
+void weather_sound( const translation &sound_message, std::string_view sound_effect )
 {
     Character &player_character = get_player_character();
     map &here = get_map();
@@ -1020,6 +1016,18 @@ const weather_generator &weather_manager::get_cur_weather_gen() const
     return om.get_settings().get_settings_weather();
 }
 
+void weather_manager::on_game_start()
+{
+    if( get_option<std::string>( "ETERNAL_WEATHER" ) != "normal" ) {
+        weather_override = static_cast<weather_type_id>
+                           ( get_option<std::string>( "ETERNAL_WEATHER" ) );
+        set_nextweather( calendar::turn );
+    } else {
+        weather_override = WEATHER_NULL;
+        set_nextweather( calendar::turn );
+    }
+}
+
 void weather_manager::update_weather()
 {
     Character &player_character = get_player_character();
@@ -1055,12 +1063,6 @@ void weather_manager::update_weather()
                                                 string_format( _( "The weather changed to %s!" ), weather_id->name ) );
         }
 
-        if( weather_id->sight_penalty != old_weather->sight_penalty ) {
-            for( int i = -OVERMAP_DEPTH; i <= OVERMAP_HEIGHT; i++ ) {
-                here.set_transparency_cache_dirty( i );
-            }
-            here.set_seen_cache_dirty( tripoint_bub_ms::zero );
-        }
         if( weather_changed ) {
             effect_on_conditions::process_reactivate();
         }
@@ -1201,6 +1203,7 @@ units::temperature weather_manager::get_temperature( const tripoint_bub_ms &loca
         temp_mod = get_heat_radiation( location );
         temp_mod += get_convection_temperature( location );
         temp_mod += get_map().get_temperature_mod( location );
+        temp_mod += weather_id->temperature_modifier;
 
         temp += temp_mod;
     }

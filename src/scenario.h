@@ -10,6 +10,8 @@
 #include <vector>
 
 #include "calendar.h"
+#include "coordinates.h"
+#include "point.h"
 #include "ret_val.h"
 #include "translation.h"
 #include "type_id.h"
@@ -52,6 +54,7 @@ class scenario
         std::set<trait_id> _forced_traits;
         std::set<trait_id> _forbidden_traits;
         std::vector<start_location_id> _allowed_locs;
+        point_rel_om origin_offset = point_rel_om::zero;
         int _point_cost = 0;
         std::set<std::string> flags; // flags for some special properties of the scenario
         map_extra_id _map_extra;
@@ -112,7 +115,7 @@ class scenario
 
         bool has_hard_requirement() const;
         bool get_reveal_locale() const;
-        bool get_distance_initial_visibility() const;
+        int get_distance_initial_visibility() const;
 
         void normalize_calendar() const;
         void reset_calendar() const;
@@ -137,7 +140,7 @@ class scenario
         signed int point_cost() const;
         bool has_map_extra() const;
         const map_extra_id &get_map_extra() const;
-
+        const point_rel_om &get_origin_offset() const;
         /**
          * Returns "All", "Limited", or "Almost all" (translated)
          * This is used by newcharacter.cpp
@@ -168,7 +171,6 @@ class scenario
 };
 
 struct scenario_sorter {
-    bool sort_by_points = true;
     bool male = false;
     bool cities_enabled = false;
     /** @related player */

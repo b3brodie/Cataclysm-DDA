@@ -15,7 +15,7 @@
     "symbol": "(",
     "color": "dark_gray",
     "ammo": [ "afs_7.50mm" ],
-    "ranged_damage": { "damage_type": "bullet", "amount": -4 },
+    "ranged_damage": { "damage_type": "bullet", "amount": 1 },
     "dispersion": 175,
     "durability": 9,
     "min_strength": 16,
@@ -37,12 +37,22 @@
     ],
     "pocket_data": [
       {
+        "id": "ammo",
         "pocket_type": "MAGAZINE",
         "holster": true,
         "ammo_restriction": { "afs_7.50mm": 9 },
         "allowed_speedloaders": [ "afs_marsect72_speedloader9" ]
+      },
+      {
+        "id": "power",
+        "pocket_type": "MAGAZINE_WELL",
+        "max_contains_volume": "20 L",
+        "max_contains_weight": "20 kg",
+        "magazine_well": "75 ml",
+        "item_restriction": [ "afs_compact_cartridge" ]
       }
     ],
+    "firing_requirements": { "DEFAULT": [ { "pocket": "ammo", "qty": 1 }, { "pocket": "power", "qty": 5 } ] },
     "built_in_mods": [ "afs_marsec_t72_shotgun" ]
   },
   {
@@ -236,7 +246,7 @@
     "type": "ITEM",
     "subtypes": [ "ARTIFACT", "GUN" ],
     "name": { "str": "Wraitheon Vahagn 10XR" },
-    "description": "The legendary apex of smartgun technology, believed to be an urban legend by most.  Bleeding-edge targeting systems allow it to track up 10 distinct targets simultaneously, with every trigger pull delivering a burst of two 7.5mm microjet darts to each target with a precision that is best described as supernatural.  One needs only to point the weapon in the general direction of the enemy, and the Vahagn will do the rest.\n\nProhibitive cost and complexity kept this weapon from ever seeing the light of day, and only a handful of prototypes are believed to exist within the black market.  Finding one here can only mean that corporate forces beyond the ordinary have made Salus IV their battleground.",
+    "description": "The legendary apex of smartgun technology, believed to be an urban legend by most.  Bleeding-edge targeting systems allow it to track up 6 distinct targets simultaneously, with every trigger pull delivering a burst of two 7.5mm microjet darts to each target with a precision that is best described as supernatural.  One needs only to point the weapon in the general direction of the enemy, and the Vahagn will do the rest.\n\nProhibitive cost and complexity kept this weapon from ever seeing the light of day, and only a handful of prototypes are believed to exist within the black market.  Finding one here can only mean that corporate forces beyond the ordinary have made Salus IV their battleground.",
     "weight": "3800 g",
     "volume": "4300 ml",
     "longest_side": "830 mm",

@@ -35,6 +35,7 @@
 #include "event_bus.h"
 #include "explosion.h"
 #include "field.h"
+#include "field_type.h"
 #include "flat_set.h"
 #include "flexbuffer_json.h"
 #include "game.h"
@@ -100,6 +101,7 @@ static const damage_type_id damage_heat( "heat" );
 
 static const efftype_id effect_all_fours( "all_fours" );
 static const efftype_id effect_blind( "blind" );
+static const efftype_id effect_bloody_feet( "bloody_feet" );
 static const efftype_id effect_downed( "downed" );
 static const efftype_id effect_eff_mind_seeing_bonus_10( "eff_mind_seeing_bonus_10" );
 static const efftype_id effect_eff_mind_seeing_bonus_20( "eff_mind_seeing_bonus_20" );
@@ -107,6 +109,7 @@ static const efftype_id effect_eff_mind_seeing_bonus_30( "eff_mind_seeing_bonus_
 static const efftype_id effect_eff_mind_seeing_bonus_5( "eff_mind_seeing_bonus_5" );
 static const efftype_id effect_eff_monster_immune_to_telepathy( "eff_monster_immune_to_telepathy" );
 static const efftype_id effect_foamcrete_slow( "foamcrete_slow" );
+static const efftype_id effect_gliding( "gliding" );
 static const efftype_id effect_knockdown( "knockdown" );
 static const efftype_id effect_lying_down( "lying_down" );
 static const efftype_id effect_monster_locked_on( "monster_locked_on" );
@@ -134,6 +137,7 @@ static const json_character_flag json_flag_BIONIC_LIMB( "BIONIC_LIMB" );
 static const json_character_flag json_flag_CANNOT_GAIN_EFFECTS( "CANNOT_GAIN_EFFECTS" );
 static const json_character_flag json_flag_CANNOT_MOVE( "CANNOT_MOVE" );
 static const json_character_flag json_flag_CANNOT_TAKE_DAMAGE( "CANNOT_TAKE_DAMAGE" );
+static const json_character_flag json_flag_DISTRIBUTED_DAMAGE( "DISTRIBUTED_DAMAGE" );
 static const json_character_flag json_flag_FREEZE_EFFECTS( "FREEZE_EFFECTS" );
 static const json_character_flag json_flag_IGNORE_TEMP( "IGNORE_TEMP" );
 static const json_character_flag json_flag_INVISIBLE( "INVISIBLE" );
@@ -201,6 +205,11 @@ Creature &Creature::operator=( const Creature & ) = default;
 Creature &Creature::operator=( Creature && ) noexcept = default;
 
 Creature::~Creature() = default;
+
+safe_reference<Creature> Creature::get_safe_reference()
+{
+    return anchor->reference_to( this );
+}
 
 tripoint_bub_ms Creature::pos_bub() const
 {
@@ -314,7 +323,25 @@ void Creature::set_pos_abs_only( const tripoint_abs_ms &loc )
     location = loc;
 }
 
-void Creature::on_move( const tripoint_abs_ms & ) {}
+void Creature::on_move( const tripoint_abs_ms &old_pos )
+{
+    if( old_pos == pos_abs() ) {
+        return;
+    }
+
+    if( has_effect( effect_gliding ) || has_flag( mon_flag_FLIES ) ) {
+        return;
+    }
+
+    map &here = get_map();
+    const optional_vpart_position vp_there = here.veh_at( old_pos );
+    if( vp_there ) {
+        return;
+    }
+
+    leave_bloody_footprint( old_pos );
+    check_bloody_feet( old_pos );
+}
 
 std::vector<std::string> Creature::get_grammatical_genders() const
 {
@@ -343,6 +370,78 @@ void Creature::reset()
 void Creature::bleed( map &here ) const
 {
     here.add_splatter( bloodType(), pos_bub( here ) );
+}
+
+void Creature::leave_bloody_footprint( const tripoint_abs_ms &old_pos ) const
+{
+    if( has_effect( effect_bloody_feet ) == false ) {
+        return;
+    }
+
+    map &here = get_map();
+
+    // Check if there is already blood or a footprint on the tile
+    const field &fields = here.field_at( here.get_bub( old_pos ) );
+    const field_entry *blood = fields.find_field( fd_blood );
+    if( blood != nullptr ||
+        fields.find_field( fd_blood_footprint_n ) != nullptr ||
+        fields.find_field( fd_blood_footprint_w ) != nullptr ||
+        fields.find_field( fd_blood_footprint_s ) != nullptr ||
+        fields.find_field( fd_blood_footprint_e ) != nullptr ) {
+        return;
+    }
+
+    // Choose footprint direction
+    direction dir = direction_from( old_pos, pos_abs() );
+
+    field_type_str_id footprint = fd_blood_footprint_s;
+    switch( dir ) {
+        case direction::NORTH:
+            footprint = fd_blood_footprint_n;
+            break;
+        case direction::NORTHWEST:
+        case direction::SOUTHWEST:
+        case direction::WEST:
+            footprint = fd_blood_footprint_w;
+            break;
+        case direction::SOUTH:
+            footprint = fd_blood_footprint_s;
+            break;
+        case direction::NORTHEAST:
+        case direction::SOUTHEAST:
+        case direction::EAST:
+            footprint = fd_blood_footprint_e;
+            break;
+        default:
+            break;
+    }
+
+    // Place footprint
+    here.add_field( here.get_bub( old_pos ), footprint, 1 );
+    //get_effect( effect_bloody_feet ).set_duration(get_effect( effect_bloody_feet ).get_duration() - 1_turns);
+}
+
+void Creature::check_bloody_feet( const tripoint_abs_ms &old_pos )
+{
+    if( has_effect( effect_bloody_feet ) ) {
+        return;
+    }
+    map &here = get_map();
+
+    const field &fields = here.field_at( here.get_bub( old_pos ) );
+    const field_entry *blood = fields.find_field( fd_blood );
+
+    if( blood != nullptr ) {
+        time_duration dur = 3_turns;
+        if( blood->get_field_intensity() <= 1 ) {
+            return;
+        } else if( blood->get_field_intensity() == 2 ) {
+            dur = 3_turns;
+        } else if( blood->get_field_intensity() >= 3 ) {
+            dur = 5_turns;
+        }
+        add_effect( effect_bloody_feet, dur );
+    }
 }
 
 void Creature::reset_bonuses()
@@ -1173,7 +1272,11 @@ struct projectile_attack_results {
     std::string wp_hit;
     bool is_crit = false;
     bool is_headshot = false;
-    const weakpoint *wp;
+    // TODO: select_body_part_projectile_attack only sets wp for monster targets; the
+    // non-monster path leaves it null, so deal_projectile_attack must guard the deref.
+    // Long-term: change deal_damage to take const weakpoint* (or std::optional) so the
+    // missing weakpoint is explicit at the API boundary.
+    const weakpoint *wp = nullptr;
 
     explicit projectile_attack_results( const projectile &proj ) {
         max_damage = proj.impact.total_damage();
@@ -1277,10 +1380,15 @@ void Creature::messaging_projectile_attack( const Creature *source,
             }
         } else if( is_avatar() ) {
             //monster hits player ranged
-            //~ Hit message. 1$s is bodypart name in accusative. 2$d is damage value.
-            add_msg_if_player( m_bad, _( "You were hit in the %1$s for %2$d damage." ),
-                               body_part_name_accusative( hit_selection.bp_hit ),
-                               total_damage );
+            if( has_flag( json_flag_DISTRIBUTED_DAMAGE ) ) {
+                //~ Hit message. 2$d is damage value.
+                add_msg_if_player( m_bad, _( "You were hit for %2$d total damage." ) );
+            } else {
+                //~ Hit message. 1$s is bodypart name in accusative. 2$d is damage value.
+                add_msg_if_player( m_bad, _( "You were hit in the %1$s for %2$d damage." ),
+                                   body_part_name_accusative( hit_selection.bp_hit ),
+                                   total_damage );
+            }
         } else if( source != nullptr ) {
             if( source->is_avatar() ) {
                 //player hits monster ranged
@@ -1449,7 +1557,10 @@ void Creature::deal_projectile_attack( map *here, Creature *source, dealt_projec
         }
     }
 
-    dealt_dam = deal_damage( source, hit_selection.bp_hit, impact, wp_attack_copy, *hit_selection.wp );
+    // TODO: see note on projectile_attack_results::wp; this fallback hides the API gap.
+    static const weakpoint default_weakpoint;
+    dealt_dam = deal_damage( source, hit_selection.bp_hit, impact, wp_attack_copy,
+                             hit_selection.wp ? *hit_selection.wp : default_weakpoint );
     // Force damage instance to match the selected body point
     dealt_dam.bp_hit = hit_selection.bp_hit;
     // Retrieve the selected weakpoint from the damage instance.
@@ -1514,13 +1625,14 @@ dealt_damage_instance Creature::deal_damage( Creature *source, bodypart_id bp,
         total_damage = clamp( get_hp( bp ), total_base_damage, total_damage );
     }
     if( !bp->has_flag( json_flag_BIONIC_LIMB ) ) {
-        mod_pain( total_pain );
+        mod_pain( total_pain, bp );
     }
 
     apply_damage( source, bp, total_damage );
 
     if( wkpt != nullptr ) {
         wkpt->apply_effects( *this, total_damage, attack );
+        add_msg_debug( debugmode::DF_WEAKPOINTS, "applying weakpoint: %s", wkpt->id );
     }
 
     return dealt_dams;
@@ -1862,6 +1974,12 @@ void Creature::add_effect( const effect_source &source, const efftype_id &eff_id
             e.clamp_intensity();
             if( e.get_intensity() != prev_int ) {
                 on_effect_int_change( eff_id, e.get_intensity(), bp );
+
+                if( Character *ch = as_character() ) {
+                    get_event_bus().send<event_type::character_effect_intensity_changed>(
+                        ch->getID(), bp.id(), eff_id, e.get_intensity()
+                    );
+                }
             }
         }
     }
@@ -2209,7 +2327,7 @@ void Creature::clear_values()
     values.clear();
 }
 
-int Creature::mod_pain( int npain )
+int Creature::mod_pain( int npain, const bodypart_id /* bp */ )
 {
     mod_pain_noresist( npain );
     return npain;
@@ -2891,7 +3009,7 @@ static void sort_body_parts( std::vector<bodypart_id> &bps, const Creature *c )
         pending.pop();
         result.push_back( next );
 
-        const cata::flat_set<bodypart_id> children_set = parts_connected_to.at( next );
+        const cata::flat_set<bodypart_id> &children_set = parts_connected_to.at( next );
         std::vector<bodypart_id> children( children_set.begin(), children_set.end() );
         std::sort( children.begin(), children.end(), compare_children );
         for( const bodypart_id &child : children ) {

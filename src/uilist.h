@@ -429,6 +429,16 @@ class uilist // NOLINT(cata-xy)
 
         void reset();
 
+#if defined(TILES)
+        void set_hide( bool val );
+        /**
+         * Used to hide ImGui menu under old menu.
+         *
+         * FIXME: Remove after complete ImGui migration.
+         */
+        void hide_if_hidden();
+#endif
+
         shared_ptr_fast<uilist_impl> create_or_get_ui();
         // NOLINTNEXTLINE(google-explicit-constructor)
         operator int() const;
@@ -481,6 +491,8 @@ class uilist // NOLINT(cata-xy)
         bool hilight_disabled = false;
         // if true, calculates size to include all categories
         bool size_to_all_categories = false;
+        // if true, forces `calculated_menu_size` to equal `desired_bounds`
+        bool force_desired_bounds = false;
 
     private:
         report_color_error _color_error = report_color_error::yes;
@@ -516,7 +528,6 @@ class uilist // NOLINT(cata-xy)
         int vmax = 0;
 
         bool started = false;
-        bool recalc_start = false;
         bool clicked = false;
         bool need_to_scroll = false;
 
@@ -536,6 +547,36 @@ class uilist // NOLINT(cata-xy)
         int previewing = 0;
 
         void set_selected( int index );
+};
+
+
+class uilist_impl : public cataimgui::window
+{
+#if defined(TILES)
+        friend class uilist;
+#endif
+        uilist &parent;
+    public:
+        explicit uilist_impl( uilist &parent ) : cataimgui::window( "UILIST",
+                    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+                    ImGuiWindowFlags_NoNavInputs ),
+            parent( parent ) {
+        }
+
+        uilist_impl( uilist &parent, const std::string &title ) : cataimgui::window( title,
+                    ImGuiWindowFlags_None | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
+                    ImGuiWindowFlags_NoNavInputs ),
+            parent( parent ) {
+        }
+
+        cataimgui::bounds get_bounds() override {
+            if( !parent.started ) {
+                parent.setup();
+            }
+
+            return parent.desired_bounds.value_or( parent.calculated_bounds );
+        }
+        void draw_controls() override;
 };
 
 /**

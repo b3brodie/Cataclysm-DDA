@@ -126,6 +126,21 @@
   },
   {
     "type": "MONSTER_FACTION",
+    "name": "shrew",
+    "base_faction": "mammal_small_predator"
+  },
+  {
+    "type": "MONSTER_FACTION",
+    "name": "mole",
+    "base_faction": "mammal_small_predator"
+  },
+  {
+    "type": "MONSTER_FACTION",
+    "name": "porcupine",
+    "base_faction": "mammal_small_predator"
+  },
+  {
+    "type": "MONSTER_FACTION",
     "name": "raccoon",
     "base_faction": "mammal_small_predator"
   },
@@ -902,5 +917,10 @@
     "name": "dark_wyrm",
     "base_faction": "mutant",
     "neutral": [ "dark_wyrm" ]
+  },
+  {
+    "type": "MONSTER_FACTION",
+    "name": "beetle_solar",
+    "base_faction": "insect"
   }
 ]

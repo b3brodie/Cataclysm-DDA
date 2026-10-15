@@ -26,11 +26,7 @@
 
 #if defined(TILES) || defined(SDL_SOUND)
 #define SDL_SET_MEMORY_FUNCTIONS
-#if defined(_MSC_VER) && defined(USE_VCPKG)
-#include <SDL2/SDL_stdinc.h>
-#else
-#include <SDL_stdinc.h>
-#endif
+#include <SDL3/SDL_stdinc.h>
 #endif
 
 void cata::init_allocator()

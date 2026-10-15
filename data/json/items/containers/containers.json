@@ -89,7 +89,7 @@
         "watertight": true,
         "rigid": true,
         "max_contains_volume": "100 L",
-        "max_contains_weight": "250 kg"
+        "max_contains_weight": "500 kg"
       }
     ],
     "qualities": [ [ "BOIL", 2 ], [ "CONTAIN", 1 ] ],
@@ -119,7 +119,7 @@
         "watertight": true,
         "rigid": true,
         "max_contains_volume": "200 L",
-        "max_contains_weight": "500 kg"
+        "max_contains_weight": "1000 kg"
       }
     ],
     "qualities": [ [ "BOIL", 2 ], [ "CONTAIN", 1 ] ],
@@ -133,8 +133,8 @@
     "category": "container",
     "name": { "str": "reusable plastic sack" },
     "looks_like": "bag_plastic",
-    "description": "A large and sturdy sack, made out of some plastic material.  Popular choice to store sand, gravel, cement, or stop some local flood.",
-    "//": "durasack woven polypropylene bags",
+    "description": "A large and sturdy sack, made out of woven polypropylene.  Popular choice to store sand, gravel, cement, or stop some local flood.",
+    "//": "woven polypropylene bags",
     "weight": "750 g",
     "volume": "1250 ml",
     "price": "85 cent",
@@ -158,7 +158,7 @@
     "subtypes": [ "BOOK" ],
     "name": { "str": "durable plastic sack, cement" },
     "looks_like": "bag_plastic",
-    "description": "A large and sturdy sack, made out plastic material.  Stores cement and has instructions on how to use it to make mortar.",
+    "description": "A large and sturdy sack, made out of woven polypropylene.  Stores cement and has instructions on how to use it to make mortar.",
     "//": "book data is used so item can work as book and provide recipes",
     "copy-from": "bag_durasack",
     "max_level": 0,
@@ -1030,6 +1030,35 @@
       }
     ],
     "melee_damage": { "bash": 1 }
+  },
+  {
+    "id": "bottle_liter",
+    "type": "ITEM",
+    "category": "container",
+    "name": { "str": "medium plastic bottle" },
+    "looks_like": "bottle_plastic",
+    "description": "32 oz, or roughly 1-liter plastic bottle that can hold variety of liquids.",
+    "weight": "25 g",
+    "volume": "1188 ml",
+    "longest_side": "25 cm",
+    "price": "15 cent",
+    "price_postapoc": "1 cent",
+    "material": [ "plastic" ],
+    "symbol": ")",
+    "color": "cyan",
+    "pocket_data": [
+      {
+        "pocket_type": "CONTAINER",
+        "watertight": true,
+        "rigid": true,
+        "transparent": true,
+        "max_contains_volume": "1 L",
+        "max_item_volume": "17 ml",
+        "max_contains_weight": "5 kg",
+        "moves": 400
+      }
+    ],
+    "flags": [ "COLLAPSE_CONTENTS" ]
   },
   {
     "id": "bottle_twoliter",
@@ -1953,7 +1982,7 @@
         "transparent": true,
         "max_contains_volume": "3000 ml",
         "max_item_volume": "32 ml",
-        "max_contains_weight": "20 kg"
+        "max_contains_weight": "4 kg"
       }
     ],
     "flags": [ "BELTED", "COLLAPSE_CONTENTS" ],
@@ -3082,7 +3111,7 @@
         "rigid": true,
         "watertight": true,
         "max_contains_volume": "60 L",
-        "max_contains_weight": "120 kg"
+        "max_contains_weight": "600 kg"
       }
     ],
     "use_action": [ "HEAT_LIQUID_ITEMS" ],
@@ -3114,7 +3143,7 @@
         "rigid": true,
         "watertight": true,
         "max_contains_volume": "2 L",
-        "max_contains_weight": "4 kg"
+        "max_contains_weight": "20 kg"
       }
     ],
     "use_action": [ "HEAT_LIQUID_ITEMS" ],
@@ -3195,7 +3224,7 @@
     "volume": "150 ml",
     "longest_side": "16 cm",
     "price": "10 USD",
-    "price_postapoc": "1 USD",
+    "price_postapoc": "20 cent",
     "material": [ "plastic" ],
     "symbol": ";",
     "color": "light_gray",
@@ -3552,7 +3581,7 @@
     "category": "container",
     "name": { "str": "rotten barrel" },
     "looks_like": "wooden_barrel",
-    "description": "Traditionally made of white oak; these vessels are known for delivering delicious whiskey to the future.  It has a capacity of 100 liters, or would if it weren't so rotten that it can't possibly contain anything",
+    "description": "Traditionally made of white oak; these vessels are known for delivering delicious whiskey to the future.  It has a capacity of 100 liters, or would if it weren't so rotten that it can't possibly contain anything.",
     "ascii_picture": "wooden_barrel",
     "weight": "42408 g",
     "volume": "110 L",
@@ -3667,11 +3696,11 @@
     "looks_like": "cup_plastic",
     "description": "A cheap, disposable cup with a plastic lid and straw.",
     "ascii_picture": "styrofoam_cup",
-    "weight": "50 g",
-    "volume": "501 ml",
-    "price": "0 cent",
+    "weight": "7 g",
+    "volume": "650 ml",
+    "price": "55 cent",
     "price_postapoc": "0 cent",
-    "material": [ "plastic" ],
+    "material": [ "styrofoam" ],
     "symbol": ")",
     "color": "white",
     "pocket_data": [
@@ -3842,7 +3871,7 @@
     "material": [ "plastic" ],
     "symbol": ")",
     "color": "white",
-    "use_action": { "menu_text": "open", "type": "transform", "target": "condom", "msg": "You rip open the wrapped condom." },
+    "use_action": { "menu_text": "Open", "type": "transform", "target": "condom", "msg": "You rip open the wrapped condom." },
     "flags": [ "BANK_NOTE_SHAPED" ]
   },
   {
@@ -5043,6 +5072,7 @@
       {
         "pocket_type": "CONTAINER",
         "max_contains_volume": "1 L",
+        "max_item_length": "30 cm",
         "max_contains_weight": "1 kg",
         "item_restriction": [ "duct_tape", "medical_tape" ],
         "volume_multiplier": 0.75
@@ -5395,5 +5425,149 @@
       { "pocket_type": "CONTAINER", "max_contains_volume": "2500 ml", "max_contains_weight": "10 kg", "transparent": true }
     ],
     "flags": [ "NO_RELOAD" ]
+  },
+  {
+    "id": "spool_small",
+    "type": "ITEM",
+    "category": "container",
+    "name": { "str": "small spool" },
+    "description": "A small plastic spool designed to hold various materials.",
+    "//": "0.5 lbs or 3 ft of solder",
+    "weight": "20 g",
+    "volume": "50 ml",
+    "//2": "spool itself is 200 ml, but volume is reduced if empty",
+    "material": [ "plastic" ],
+    "symbol": "=",
+    "color": "dark_gray",
+    "pocket_data": [
+      {
+        "pocket_type": "CONTAINER",
+        "rigid": false,
+        "max_contains_volume": "200 ml",
+        "max_contains_weight": "1 kg",
+        "max_item_length": "50 cm",
+        "item_restriction": [ "solder_wire", "cable", "copper_wire" ],
+        "transparent": true,
+        "moves": 200
+      }
+    ]
+  },
+  {
+    "id": "spool_welding",
+    "type": "ITEM",
+    "category": "container",
+    "name": { "str": "wire spool" },
+    "description": "A large plastic spool designed to hold welding wire.",
+    "weight": "400 g",
+    "volume": "1600 ml",
+    "material": [ "plastic" ],
+    "symbol": "=",
+    "color": "dark_gray",
+    "pocket_data": [
+      {
+        "pocket_type": "CONTAINER",
+        "rigid": false,
+        "max_contains_volume": "3000 ml",
+        "max_contains_weight": "6 kg",
+        "item_restriction": [ "welding_wire_steel", "welding_wire_alloy" ],
+        "transparent": true,
+        "moves": 800,
+        "volume_multiplier": 0.3
+      }
+    ]
+  },
+  {
+    "id": "tube_welding_rod",
+    "type": "ITEM",
+    "category": "container",
+    "name": { "str": "welding rod tube" },
+    "description": "A long, clear plastic canister with a threaded cap.  It is designed to hold heavy stacks of welding and brazing rods.",
+    "weight": "250 g",
+    "volume": "4200 ml",
+    "material": [ "plastic" ],
+    "symbol": "|",
+    "color": "light_cyan",
+    "longest_side": "48 cm",
+    "pocket_data": [
+      {
+        "pocket_type": "CONTAINER",
+        "max_contains_volume": "4000 ml",
+        "max_contains_weight": "12 kg",
+        "max_item_length": "47 cm",
+        "rigid": true
+      }
+    ]
+  },
+  {
+    "id": "six_bottle_box",
+    "type": "ITEM",
+    "category": "container",
+    "name": { "str": "six-bottle box", "str_pl": "six-bottle boxes" },
+    "description": "An open-top cardboard box, featuring a handle and six partitioned slots meant for small beverage bottles.",
+    "looks_like": "box_small",
+    "weight": "50 g",
+    "volume": "3500 ml",
+    "longest_side": "22 cm",
+    "price": "0 cent",
+    "price_postapoc": "0 cent",
+    "material": [ "cardboard" ],
+    "pocket_data": [
+      {
+        "pocket_type": "CONTAINER",
+        "holster": true,
+        "rigid": true,
+        "max_contains_volume": "500 ml",
+        "max_contains_weight": "600 g",
+        "max_item_length": "22 cm",
+        "moves": 100
+      },
+      {
+        "pocket_type": "CONTAINER",
+        "holster": true,
+        "rigid": true,
+        "max_contains_volume": "500 ml",
+        "max_contains_weight": "600 g",
+        "max_item_length": "22 cm",
+        "moves": 100
+      },
+      {
+        "pocket_type": "CONTAINER",
+        "holster": true,
+        "rigid": true,
+        "max_contains_volume": "500 ml",
+        "max_contains_weight": "600 g",
+        "max_item_length": "22 cm",
+        "moves": 100
+      },
+      {
+        "pocket_type": "CONTAINER",
+        "holster": true,
+        "rigid": true,
+        "max_contains_volume": "500 ml",
+        "max_contains_weight": "600 g",
+        "max_item_length": "22 cm",
+        "moves": 100
+      },
+      {
+        "pocket_type": "CONTAINER",
+        "holster": true,
+        "rigid": true,
+        "max_contains_volume": "500 ml",
+        "max_contains_weight": "600 g",
+        "max_item_length": "22 cm",
+        "moves": 100
+      },
+      {
+        "pocket_type": "CONTAINER",
+        "holster": true,
+        "rigid": true,
+        "max_contains_volume": "500 ml",
+        "max_contains_weight": "600 g",
+        "max_item_length": "22 cm",
+        "moves": 100
+      }
+    ],
+    "symbol": "8",
+    "color": "brown"
   }
 ]

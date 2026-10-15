@@ -46,12 +46,10 @@
 #include "game_inventory.h"
 #include "generic_factory.h"
 #include "iexamine.h"
-#include "inventory.h"
 #include "input_popup.h"
 #include "item.h"
 #include "item_components.h"
 #include "item_contents.h"
-#include "item_group.h"
 #include "item_location.h"
 #include "item_pocket.h"
 #include "item_transformation.h"
@@ -87,6 +85,7 @@
 #include "sounds.h"
 #include "string_formatter.h"
 #include "talker.h"
+#include "temp_crafting_inventory.h"
 #include "translations.h"
 #include "trap.h"
 #include "type_id.h"
@@ -119,7 +118,6 @@ static const efftype_id effect_disinfected( "disinfected" );
 static const efftype_id effect_incorporeal( "incorporeal" );
 static const efftype_id effect_infected( "infected" );
 static const efftype_id effect_masked_scent( "masked_scent" );
-static const efftype_id effect_music( "music" );
 static const efftype_id effect_pet( "pet" );
 static const efftype_id effect_playing_instrument( "playing_instrument" );
 static const efftype_id effect_recover( "recover" );
@@ -176,6 +174,7 @@ static const skill_id skill_traps( "traps" );
 static const trait_id trait_DEBUG_BIONICS( "DEBUG_BIONICS" );
 static const trait_id trait_ILLITERATE( "ILLITERATE" );
 static const trait_id trait_LIGHTWEIGHT( "LIGHTWEIGHT" );
+static const trait_id trait_SORCERER( "SORCERER" );
 static const trait_id trait_TOLERANCE( "TOLERANCE" );
 
 static const trap_str_id tr_firewood_source( "tr_firewood_source" );
@@ -197,26 +196,102 @@ item_location form_loc_recursive( T &loc, item &it )
 template item_location form_loc_recursive<Character>( Character &loc, item &it );
 template item_location form_loc_recursive<npc>( npc &loc, item &it );
 
-static item_location form_loc( Character &you, map *here, const tripoint_bub_ms &p, item &it )
+static std::optional<item_location> try_form_loc( Character &you, map *here,
+        const tripoint_bub_ms &p, item &it )
 {
     if( you.has_item( it ) ) {
         return form_loc_recursive( you, it );
     }
-    map_cursor mc( here, p );
-    if( mc.has_item( it ) ) {
-        return form_loc_recursive( mc, it );
-    }
-    const optional_vpart_position vp = here->veh_at( p );
-    if( vp ) {
-        vehicle_cursor vc( vp->vehicle(), vp->part_index() );
-        if( vc.has_item( it ) ) {
-            return form_loc_recursive( vc, it );
+    if( here ) {
+        map_cursor mc( here, p );
+        if( mc.has_item( it ) ) {
+            return form_loc_recursive( mc, it );
+        }
+        const optional_vpart_position vp = here->veh_at( p );
+        if( vp ) {
+            vehicle_cursor vc( vp->vehicle(), vp->part_index() );
+            if( vc.has_item( it ) ) {
+                return form_loc_recursive( vc, it );
+            }
         }
     }
+    return std::nullopt;
+}
 
+static item_location form_loc( Character &you, map *here, const tripoint_bub_ms &p, item &it )
+{
+    if( std::optional<item_location> loc = try_form_loc( you, here, p, it ) ) {
+        return *loc;
+    }
     debugmsg( "Couldn't find item %s to form item_location, forming dummy location to ensure minimum functionality",
               it.display_name() );
     return item_location( you, &it );
+}
+
+// Like parents_can_contain_recursive but with replacement semantics: an
+// in-place transform swaps `it` out, so each level credits `it`'s footprint.
+static ret_val<void> transform_fits_parent_pocket( const Character &p, const item &it,
+        const item &result, map *here, const tripoint_bub_ms &pos )
+{
+    const std::optional<item_location> loc = try_form_loc(
+                const_cast<Character &>( p ), here, pos, const_cast<item &>( it ) );
+    if( !loc || !loc->has_parent() ) {
+        return ret_val<void>::make_success();
+    }
+
+    units::mass result_weight = result.weight();
+    units::volume result_volume = result.volume();
+    units::length result_length = result.length();
+    units::mass it_weight = it.weight();
+    units::volume it_volume = it.volume();
+    units::length it_length = it.length();
+    const std::vector<const item_pocket *> innermost = loc->get_item()->get_standard_pockets();
+    const item_pocket *current_pocket = innermost.empty() ? nullptr : innermost.front();
+    const pocket_data *current_pocket_data = current_pocket ? current_pocket->get_pocket_data()
+            : nullptr;
+
+    item_location current = *loc;
+    while( current.has_parent() ) {
+        const item_pocket *parent_pocket = current.parent_pocket();
+        if( parent_pocket == nullptr ) {
+            break;
+        }
+        if( current_pocket && current_pocket->rigid() ) {
+            result_volume = 0_ml;
+            result_length = 0_mm;
+            it_volume = 0_ml;
+            it_length = 0_mm;
+        }
+        if( current_pocket_data ) {
+            result_weight = result_weight * current_pocket_data->weight_multiplier;
+            result_volume = result_volume * current_pocket_data->volume_multiplier;
+            result_length = result_length * std::cbrt( current_pocket_data->volume_multiplier );
+            it_weight = it_weight * current_pocket_data->weight_multiplier;
+            it_volume = it_volume * current_pocket_data->volume_multiplier;
+            it_length = it_length * std::cbrt( current_pocket_data->volume_multiplier );
+        }
+
+        if( result_weight - it_weight > parent_pocket->remaining_weight() ) {
+            return ret_val<void>::make_failure(
+                       _( "The %1$s would not fit in its container after transforming: item is too heavy for a parent pocket" ),
+                       result.tname() );
+        }
+        if( result_volume - it_volume > parent_pocket->remaining_volume() ) {
+            return ret_val<void>::make_failure(
+                       _( "The %1$s would not fit in its container after transforming: item is too big for a parent pocket" ),
+                       result.tname() );
+        }
+        if( result_length > parent_pocket->get_pocket_data()->max_item_length ) {
+            return ret_val<void>::make_failure(
+                       _( "The %1$s would not fit in its container after transforming: item is too long for a parent pocket" ),
+                       result.tname() );
+        }
+
+        current_pocket = parent_pocket;
+        current_pocket_data = current_pocket->get_pocket_data();
+        current = current.parent_item();
+    }
+    return ret_val<void>::make_success();
 }
 
 std::unique_ptr<iuse_actor> iuse_transform::clone() const
@@ -360,7 +435,7 @@ std::optional<int> iuse_transform::use( Character *p, item &it, map *,
 }
 
 ret_val<void> iuse_transform::can_use( const Character &p, const item &it,
-                                       map *here, const tripoint_bub_ms & ) const
+                                       map *here, const tripoint_bub_ms &pos ) const
 {
     if( need_worn && !p.is_worn( it ) ) {
         return ret_val<void>::make_failure( _( "You need to wear the %1$s before activating it." ),
@@ -373,6 +448,16 @@ ret_val<void> iuse_transform::can_use( const Character &p, const item &it,
     if( need_empty && !it.empty() ) {
         return ret_val<void>::make_failure( _( "You need to empty the %1$s before activating it." ),
                                             it.tname() );
+    }
+
+    if( transform.target_group.is_empty() && !transform.target.is_empty() ) {
+        const item result = transform.container.is_empty()
+                            ? item( transform.target )
+                            : item( transform.container );
+        ret_val<void> fits = transform_fits_parent_pocket( p, it, result, here, pos );
+        if( !fits.success() ) {
+            return fits;
+        }
     }
 
     if( p.is_worn( it ) ) {
@@ -398,8 +483,8 @@ ret_val<void> iuse_transform::can_use( const Character &p, const item &it,
     }
 
     std::map<quality_id, int> unmet_reqs;
-    inventory inv;
-    inv.form_from_map( p.pos_bub( *here ), 1, &p, true, true );
+    temp_crafting_inventory inv;
+    inv.form_from_map( p.pos_bub( *here ), 1, &p, true );
     for( const auto &quality : qualities_needed ) {
         if( !p.has_quality( quality.first, quality.second ) &&
             !inv.has_quality( quality.first, quality.second ) ) {
@@ -502,59 +587,6 @@ void iuse_transform::info( const item &it, std::vector<iteminfo> &dump ) const
     if( explosion_use != nullptr ) {
         explosion_use->get_actor_ptr()->info( it, dump );
     }
-}
-
-std::unique_ptr<iuse_actor> unpack_actor::clone() const
-{
-    return std::make_unique<unpack_actor>( *this );
-}
-
-void unpack_actor::load( const JsonObject &obj, const std::string & )
-{
-    optional( obj, false, "group", unpack_group );
-    optional( obj, false, "items_fit", items_fit, false );
-    optional( obj, false, "filthy_volume_threshold", filthy_vol_threshold, 0_ml );
-}
-
-std::optional<int> unpack_actor::use( Character *p, item &it, map *here,
-                                      const tripoint_bub_ms & ) const
-{
-    std::vector<item> items = item_group::items_from( unpack_group, calendar::turn );
-    item last_armor;
-
-    p->add_msg_if_player( _( "You unpack the %s." ), it.tname() );
-
-    for( item &content : items ) {
-        if( content.is_armor() ) {
-            if( items_fit ) {
-                content.set_flag( flag_FIT );
-            } else if( content.typeId() == last_armor.typeId() ) {
-                if( last_armor.has_flag( flag_FIT ) ) {
-                    content.set_flag( flag_FIT );
-                } else if( !last_armor.has_flag( flag_FIT ) ) {
-                    content.unset_flag( flag_FIT );
-                }
-            }
-            last_armor = content;
-        }
-
-        if( content.get_volume_capacity() >= filthy_vol_threshold &&
-            it.has_flag( flag_FILTHY ) ) {
-            content.set_flag( flag_FILTHY );
-        }
-
-        here->add_item_or_charges( p->pos_bub( *here ), content );
-    }
-
-    p->i_rem( &it );
-
-    return 0;
-}
-
-void unpack_actor::info( const item &, std::vector<iteminfo> &dump ) const
-{
-    dump.emplace_back( "DESCRIPTION",
-                       _( "This item could be unpacked to receive something." ) );
 }
 
 std::unique_ptr<iuse_actor> message_iuse::clone() const
@@ -809,6 +841,8 @@ void effect_data::deserialize( const JsonObject &jo )
 
 } // namespace iuse
 
+namespace
+{
 class drug_vitamin_reader : public generic_typed_reader<drug_vitamin_reader>
 {
     public:
@@ -825,6 +859,7 @@ class drug_vitamin_reader : public generic_typed_reader<drug_vitamin_reader>
             return std::pair<vitamin_id, std::pair<int, int>>( ja.get_string( 0 ), std::make_pair( lo, hi ) );
         }
 };
+} // namespace
 
 void consume_drug_iuse::load( const JsonObject &obj, const std::string & )
 {
@@ -1015,7 +1050,7 @@ std::optional<int> place_monster_iuse::use( Character *p, item &it, map *here,
 
     shared_ptr_fast<monster> newmon_ptr = make_shared_fast<monster>( mtypeid );
     monster &newmon = *newmon_ptr;
-    newmon.init_from_item( it );
+    newmon.init_from_item( item_location( *p, &it ) );
     if( place_randomly ) {
         // place_critter_around returns the same pointer as its parameter (or null)
         if( !g->place_critter_around( newmon_ptr, p->pos_bub( *here ), 1 ) ) {
@@ -1325,6 +1360,8 @@ std::unique_ptr<iuse_actor> reveal_map_actor::clone() const
     return std::make_unique<reveal_map_actor>( *this );
 }
 
+namespace
+{
 class omt_reveal_type_reader : public generic_typed_reader<omt_reveal_type_reader>
 {
     public:
@@ -1340,6 +1377,7 @@ class omt_reveal_type_reader : public generic_typed_reader<omt_reveal_type_reade
                                    jo.get_enum_value<ot_match_type>( "om_terrain_match_type", ot_match_type::contains ) );
         }
 };
+} // namespace
 
 void reveal_map_actor::load( const JsonObject &obj, const std::string & )
 {
@@ -1567,8 +1605,8 @@ ret_val<void> firestarter_actor::can_use( const Character &p, const item &it,
     }
 
     std::map<quality_id, int> unmet_reqs;
-    inventory inv;
-    inv.form_from_map( p.pos_bub( *here ), 1, &p, true, true );
+    temp_crafting_inventory inv;
+    inv.form_from_map( p.pos_bub( *here ), 1, &p, true );
     for( const auto &quality : qualities_needed ) {
         if( !p.has_quality( quality.first, quality.second ) &&
             !inv.has_quality( quality.first, quality.second ) ) {
@@ -1697,10 +1735,10 @@ bool firestarter_actor::npc_start_fire( npc &who, item &tool,
         // Search inventory and adjacent tiles (same scope as the
         // tinder picker in fire_start_activity_actor::do_turn).
         item_location tinder;
-        who.visit_items( [&tinder, &who]( item * it, item * ) -> VisitResponse {
+        who.visit_items( [&tinder]( item_location it ) -> VisitResponse {
             if( it->has_flag( flag_TINDER ) )
             {
-                tinder = item_location( who, it );
+                tinder = it;
                 return VisitResponse::ABORT;
             }
             return VisitResponse::NEXT;
@@ -1937,11 +1975,13 @@ static std::optional<recipe> find_uncraft_recipe( const item &x )
     return std::nullopt;
 }
 
-void salvage_actor::cut_up( Character &p, item_location &cut ) const
+std::map<itype_id, int> salvage_actor::salvage_results( item_location cut, double efficiency )
 {
-    map &here = get_map();
+    if( efficiency > 1.0 ) {
+        debugmsg( "Salvaging for more materials than exists in item.  Salvage eff %f%% item %s",
+                  efficiency * 100.0, cut.get_item()->tname() );
+    }
 
-    // Map of salvaged items (id, count)
     std::map<itype_id, int> salvage;
     std::map<material_id, units::mass> mat_to_weight;
     std::set<material_id> mat_set;
@@ -1949,24 +1989,6 @@ void salvage_actor::cut_up( Character &p, item_location &cut ) const
         mat_set.insert( mat.first );
     }
 
-    // Calculate efficiency losses
-    float efficiency = 1.0;
-    // Higher fabrication, less chance of entropy, but still a chance.
-    /** @EFFECT_FABRICATION reduces chance of losing components when cutting items up */
-    int entropy_threshold = std::max( 0,
-                                      5 - static_cast<int>( round( p.get_skill_level( skill_fabrication ) ) ) );
-    if( rng( 1, 10 ) <= entropy_threshold ) {
-        efficiency *= 0.9;
-    }
-
-    // Fail dex roll, potentially lose more parts.
-    /** @EFFECT_DEX randomly reduces component loss when cutting items up */
-    if( dice( 3, 4 ) > p.get_dex() ) {
-        efficiency *= 0.95;
-    }
-
-    // If the item being cut is damaged, additional losses will be incurred.
-    efficiency *= std::pow( 0.8, cut.get_item()->damage_level() );
 
     auto distribute_uniformly = [&mat_to_weight]( const item & x, float num_adjusted ) -> void {
         for( const auto &type : x.made_of() )
@@ -2051,15 +2073,43 @@ void salvage_actor::cut_up( Character &p, item_location &cut ) const
     // Decompose the item into irreducible parts
     cut_up_component( *cut.get_item(), efficiency );
 
-    // Not much practice, and you won't get very far ripping things up.
-    p.practice( skill_fabrication, rng( 0, 5 ), 1 );
-
     // Add the uniformly distributed mass to the relevant salvage items
     for( const auto &iter : mat_to_weight ) {
         if( const std::optional<itype_id> id = iter.first->salvaged_into() ) {
             salvage[*id] += iter.second / id->obj().weight;
         }
     }
+
+    return salvage;
+}
+
+void salvage_actor::cut_up( Character &p, item_location &cut ) const
+{
+    map &here = get_map();
+
+    // Calculate efficiency losses
+    float efficiency = 1.0;
+    // Higher fabrication, less chance of entropy, but still a chance.
+    /** @EFFECT_FABRICATION reduces chance of losing components when cutting items up */
+    int entropy_threshold = std::max( 0,
+                                      5 - static_cast<int>( round( p.get_skill_level( skill_fabrication ) ) ) );
+    if( rng( 1, 10 ) <= entropy_threshold ) {
+        efficiency *= 0.9;
+    }
+
+    // Fail dex roll, potentially lose more parts.
+    /** @EFFECT_DEX randomly reduces component loss when cutting items up */
+    if( dice( 3, 4 ) > p.get_dex() ) {
+        efficiency *= 0.95;
+    }
+
+    // If the item being cut is damaged, additional losses will be incurred.
+    efficiency *= std::pow( 0.8, cut.get_item()->damage_level() );
+
+    // Not much practice, and you won't get very far ripping things up.
+    p.practice( skill_fabrication, rng( 0, 5 ), 1 );
+
+    std::map<itype_id, int> salvage = salvage_results( cut, efficiency );
 
     add_msg( m_info, _( "You try to salvage materials from the %s." ),
              cut.get_item()->tname() );
@@ -2598,15 +2648,12 @@ std::optional<int> musical_instrument_actor::use( Character *p, item &it,
                        it.typeId().str() );
     }
 
-    if( !p->has_effect( effect_music ) && p->can_hear( p->pos_bub( *here ), volume ) ) {
-        // Sound code doesn't describe noises at the player position
-        if( desc != "music" ) {
-            p->add_msg_if_player( m_info, desc );
-        }
+    if( desc != "music" && p->can_hear( p->pos_bub( *here ), volume ) ) {
+        p->add_msg_if_player( m_info, desc );
     }
 
     // We already played the sounds, just handle applying effects now
-    iuse::play_music( p, p->pos_bub( *here ), volume, morale_effect, /*play_sounds=*/false );
+    iuse::make_music( p, p->pos_bub( *here ), volume, morale_effect, /*play_sounds=*/false );
 
     return 0;
 }
@@ -2686,6 +2733,10 @@ std::optional<int> learn_spell_actor::use( Character *p, item &, map *,
     }
     if( p->has_trait( trait_ILLITERATE ) ) {
         p->add_msg_if_player( m_bad, _( "You can't read." ) );
+        return std::nullopt;
+    }
+    if( p->has_trait( trait_SORCERER ) ) {
+        p->add_msg_if_player( m_bad, _( "Sorcerers cannot learn spells from books or scrolls." ) );
         return std::nullopt;
     }
     if( !p->has_morale_to_read() ) {
@@ -2870,7 +2921,7 @@ bool holster_actor::store( Character &you, item &holster, item &obj ) const
                                obj.tname(), holster.tname() );
         return false;
     }
-    you.add_msg_if_player( holster_msg.empty() ? _( "You holster your %s" ) : holster_msg.translated(),
+    you.add_msg_if_player( holster_msg.empty() ? _( "You holster your %s." ) : holster_msg.translated(),
                            obj.tname(), holster.tname() );
 
     // holsters ignore penalty effects (e.g. GRABBED) when determining number of moves to consume
@@ -3116,7 +3167,12 @@ bool repair_item_actor::handle_components( Character &pl, const item &fix,
         return false;
     }
 
-    const inventory &crafting_inv = pl.crafting_inventory();
+    // a bare check never reads the counts below, so skip walking the crafting inventory
+    if( just_check && !check_consumed_available ) {
+        return true;
+    }
+
+    const temp_crafting_inventory &crafting_inv = pl.crafting_inventory();
 
     // Repairing or modifying items requires at least 1 repair item,
     //  otherwise number is related to size of item
@@ -3310,7 +3366,6 @@ std::pair<float, float> repair_item_actor::repair_chance(
             action_difficulty = material_difficulty;
             break;
         default:
-            // 5 is obsoleted reinforcing, remove after 0.H
             action_difficulty = 1000000; // ensure failure
             break;
     }
@@ -4096,6 +4151,19 @@ void place_trap_actor::data::load( const JsonObject &obj )
     optional( obj, false, "moves", moves, 100 );
 }
 
+int place_trap_actor::data::move_cost( const Character &you ) const
+{
+    const float skill = you.get_skill_level( skill_traps );
+    int move_cost_final = std::round( moves / ( skill <= 1 ? 1 : skill ) );
+    if( !you.has_proficiency( proficiency_prof_trapsetting ) ) {
+        move_cost_final = move_cost_final * 2;
+    }
+    if( !you.has_proficiency( proficiency_prof_traps ) ) {
+        move_cost_final = move_cost_final * 4;
+    }
+    return move_cost_final;
+}
+
 void place_trap_actor::load( const JsonObject &obj, const std::string & )
 {
     optional( obj, false, "allow_underwater", allow_underwater, false );
@@ -4256,19 +4324,8 @@ std::optional<int> place_trap_actor::use( Character *p, item &it, map *here,
     p->practice_proficiency( proficiency_prof_trapsetting,
                              time_duration::from_seconds( data.practice * 30 ) );
 
-    //Total time to set the trap will be determined by player's skills and proficiencies
-    int move_cost_final = std::round( ( data.moves * std::min( 1,
-                                        ( data.practice ^ 2 ) ) ) / ( p->get_skill_level( skill_traps ) <= 1 ? 1 : p->get_skill_level(
-                                                skill_traps ) ) );
-    if( !p->has_proficiency( proficiency_prof_trapsetting ) ) {
-        move_cost_final = move_cost_final * 2;
-    }
-    if( !p->has_proficiency( proficiency_prof_traps ) ) {
-        move_cost_final = move_cost_final * 4;
-    }
-
     //This probably needs to be done via assign_activity
-    p->mod_moves( -move_cost_final );
+    p->mod_moves( -data.move_cost( *p ) );
 
     place_and_add_as_known( *p, pos, data.trap );
     const trap &placed_trap = here->tr_at( pos );
@@ -4514,7 +4571,8 @@ std::optional<int> molle_detach_actor::use( Character *p, item &it,
     prompt.text = _( "Remove which accessory?" );
 
     for( size_t i = 0; i != items_attached.size(); ++i ) {
-        prompt.addentry( i, true, -1, items_attached[i]->tname() );
+        prompt.addentry( uilist_entry( i, true, -1, items_attached[i]->tname(),
+                                       c_white, items_attached[i]->color_in_inventory() ) );
     }
 
     prompt.query();
@@ -4650,7 +4708,7 @@ std::optional<int> detach_gunmods_actor::use( Character *p, item &it,
     }
 
     if( mod_index >= 0 ) {
-        gun_copy.remove_item( *mods_copy[mod_index] );
+        item_location( *p, &gun_copy ).remove_item( *mods_copy[mod_index] );
 
         if( p->meets_requirements( *mods[mod_index], gun_copy ) ||
             query_yn( _( "Are you sure?  You may be lacking the skills needed to reattach this modification." ) ) ) {
@@ -5700,7 +5758,7 @@ std::optional<int> sew_advanced_actor::use( Character *p, item &it, map *here,
     // Cache available materials
     std::map< itype_id, bool > has_enough;
     const int items_needed = mod.base_volume() / 750_ml + 1;
-    const inventory &crafting_inv = p->crafting_inventory( here );
+    const temp_crafting_inventory &crafting_inv = p->crafting_inventory( here );
     const std::function<bool( const item & )> is_filthy_filter = is_crafting_component;
 
     // Go through all discovered repair items and see if we have any of them available
@@ -5730,7 +5788,7 @@ std::optional<int> sew_advanced_actor::use( Character *p, item &it, map *here,
 
     int index = 0;
     for( const clothing_mod_id &cm : clothing_mods ) {
-        clothing_mod obj = cm.obj();
+        const clothing_mod &obj = cm.obj();
         item temp_item = modded_copy( mod, obj.flag );
         temp_item.update_clothing_mod_val();
 

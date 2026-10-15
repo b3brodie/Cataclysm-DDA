@@ -1,5 +1,15 @@
 cmake_minimum_required(VERSION 3.20)
-
+option(TILES "Build graphical tileset version." "OFF")
+# SDL2 support was removed; SDL3 is the only tiles backend. The option is kept
+# so an old -DUSE_SDL3=OFF command line fails loudly instead of silently
+# building something else.
+option(USE_SDL3 "Removed; SDL3 is the only tiles backend." "ON")
+if (TILES AND NOT USE_SDL3)
+    message(FATAL_ERROR
+            "USE_SDL3=OFF is no longer supported: SDL2 support was removed and \
+             SDL3 is the only tiles backend. Drop the option, or build without \
+             -DTILES=ON for a text-only compilation.")
+endif()
 project(CataclysmDDA)
 
 list(APPEND CMAKE_MODULE_PATH
@@ -13,7 +23,6 @@ set(CMAKE_TLS_VERIFY ON)
 
 # Build options
 include(CMakeDependentOption)
-option(TILES "Build graphical tileset version." "OFF")
 option(CURSES "Build curses version." "ON")
 option(SOUND "Support for in-game sounds & music." "OFF")
 option(BACKTRACE "Support for printing stack backtraces on crash" "ON")
@@ -88,9 +97,6 @@ endif ()
 if ("${CMAKE_SYSTEM_NAME}" MATCHES "Darwin")
     set(_OS_DARWIN_ 1)
     add_definitions(-DMACOSX)
-    if (TILES)
-        add_definitions(-DOSX_SDL2_LIBS)
-    endif ()
 endif ()
 
 include(CheckCXXCompilerFlag)
@@ -233,14 +239,24 @@ if (NOT MSVC)
              -Wpedantic \
              -Wsuggest-override \
              -Wunused-macros \
-             -Wzero-as-null-pointer-constant \
-             -Wno-dangling-reference \
-             -Wno-c++20-compat")
+             -Wzero-as-null-pointer-constant")
+    check_cxx_compiler_flag(-Wdangling-reference HAVE_DANGLING_REFERENCE)
+    if (HAVE_DANGLING_REFERENCE)
+        set(CATA_WARNINGS "${CATA_WARNINGS} -Wno-dangling-reference")
+    endif ()
+    check_cxx_compiler_flag(-Wc++20-compat HAVE_CXX20_COMPAT)
+    if (HAVE_CXX20_COMPAT)
+        set(CATA_WARNINGS "${CATA_WARNINGS} -Wno-c++20-compat")
+    endif ()
     if("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
         set(CATA_WARNINGS "${CATA_WARNINGS} -Wno-unknown-warning-option")
-    else()
-        set(CATA_WARNINGS "${CATA_WARNINGS} -Wno-unknown-warning")
     endif()
+    # GCC 16 -Wsfinae-incomplete: SFINAE on incomplete forward-declared types
+    # (e.g. std::reference_wrapper<vehicle>) is link-compatible across TUs.
+    check_cxx_compiler_flag(-Wsfinae-incomplete HAVE_SFINAE_INCOMPLETE)
+    if (HAVE_SFINAE_INCOMPLETE)
+        set(CATA_WARNINGS "${CATA_WARNINGS} -Wno-error=sfinae-incomplete")
+    endif ()
     if (NOT "${CMAKE_SYSTEM_NAME}" MATCHES "Windows")
         set(CATA_WARNINGS "${CATA_WARNINGS} -Wredundant-decls")
     endif ()
@@ -272,47 +288,30 @@ find_package(ZLIB REQUIRED)
 
 # Check for build types and libraries
 if (TILES)
-    # Find SDL, SDL_ttf & SDL_image for graphical install
-    message(STATUS "Searching for SDL2 library --")
-    if (NOT CMAKE_FIND_PACKAGE_PREFER_CONFIG)
-        set(CMAKE_FIND_PACKAGE_PREFER_CONFIG ON)
-        # ^^ Use sdl2-config.cmake provided by the system or VCPKG
-        find_package(SDL2)
-        if(NOT SDL2_FOUND)
-            # Use our CMakeModules/Find/FindSDL2.cmake
-            set(CMAKE_FIND_PACKAGE_PREFER_CONFIG OFF)
-            find_package(SDL2)
-        endif()
-        set(CMAKE_FIND_PACKAGE_PREFER_CONFIG OFF)
-    endif()
-    if (NOT (SDL2_FOUND OR TARGET SDL2::SDL2 OR TARGET SDL2::SDL2-static))
+    message(STATUS "Searching for SDL3 library --")
+    # SDL_SetGPURenderState and SDL_GetGPURendererDevice were added in SDL 3.4.0;
+    # the GPU shader path requires that floor.
+    find_package(SDL3 3.4.0 CONFIG)
+    if (NOT (SDL3_FOUND OR TARGET SDL3::SDL3 OR TARGET SDL3::SDL3-static))
         message(FATAL_ERROR
-                "This project requires SDL2 to be installed to compile in graphical mode.  \
-                 Please install the SDL2 development libraries, \
-                 or try compiling without -DTILES=1 for a text-only compilation. \
-                 See doc/c++/COMPILING-CMAKE.md for details and more info.")
+                "The tiles build requires SDL3 >= 3.4.0 to be installed. \
+                 Install or build a newer SDL3 development library, \
+                 or build without -DTILES=ON for a text-only compilation.")
     endif ()
 
-    message(STATUS "Searching for SDL2_TTF library --")
-    find_package(SDL2_ttf)
-    if (NOT (SDL2_TTF_FOUND OR TARGET SDL2::SDL2_ttf OR TARGET SDL2_ttf::SDL2_ttf
-        OR TARGET SDL2_ttf::SDL2_ttf-static))
+    message(STATUS "Searching for SDL3_ttf library --")
+    find_package(SDL3_ttf CONFIG)
+    if (NOT (SDL3_TTF_FOUND OR TARGET SDL3_ttf::SDL3_ttf OR TARGET SDL3_ttf::SDL3_ttf-static))
         message(FATAL_ERROR
-                "This project requires SDL2_ttf to be installed to compile in graphical mode. \
-                 Please install the SDL2_ttf development libraries, \
-                 or try compiling without -DTILES=1 for a text-only compilation. \
-                 See doc/c++/COMPILING-CMAKE.md for details and more info.")
+                "The tiles build requires SDL3_ttf to be installed.")
     endif ()
 
-    message(STATUS "Searching for SDL2_image library --")
-    find_package(SDL2_image)
-    if (NOT (SDL2_IMAGE_FOUND OR TARGET SDL2::SDL2_image OR TARGET SDL2_image::SDL2_image
-        OR TARGET SDL2_image::SDL2_image-static))
+    message(STATUS "Searching for SDL3_image library --")
+    find_package(SDL3_image CONFIG)
+    if (NOT (SDL3_IMAGE_FOUND OR TARGET SDL3_image::SDL3_image
+                              OR TARGET SDL3_image::SDL3_image-static))
         message(FATAL_ERROR
-                "This project requires SDL2_image to be installed to compile in graphical mode. \
-                 Please install the SDL2_image development libraries, \
-                 or try compiling without -DTILES=1 for a text-only compilation. \
-                 See doc/c++/COMPILING-CMAKE.md for details and more info.")
+                "The tiles build requires SDL3_image to be installed.")
     endif ()
     add_definitions(-DTILES)
 endif ()
@@ -374,17 +373,12 @@ if (CURSES)
 endif ()
 
 if (SOUND)
-    # Sound requires SDL_mixer library
-    message(STATUS "Searching for SDL2_mixer library --")
-    if (VCPKG_MANIFEST_MODE)
-        find_package(Vorbis CONFIG REQUIRED)
-    endif()
-    find_package(SDL2_mixer)
-    if (NOT (SDL2_MIXER_FOUND OR TARGET SDL2_mixer::SDL2_mixer
-                              OR TARGET SDL2_mixer::SDL2_mixer-static))
+    message(STATUS "Searching for SDL3_mixer library --")
+    find_package(SDL3_mixer CONFIG)
+    if (NOT (SDL3_MIXER_FOUND OR TARGET SDL3_mixer::SDL3_mixer
+                              OR TARGET SDL3_mixer::SDL3_mixer-static))
         message(FATAL_ERROR
-                "You need the SDL2_mixer development library \
-                    to be able to compile with sound enabled. \
+                "SOUND requires SDL3_mixer to be installed. \
                     See doc/c++/COMPILING-CMAKE.md for details and more info.")
     endif()
 endif ()
@@ -495,4 +489,3 @@ configure_file(
 add_custom_target(uninstall
         "${CMAKE_COMMAND}"
         -P "${CMAKE_CURRENT_BINARY_DIR}/cmake_uninstall.cmake")
-

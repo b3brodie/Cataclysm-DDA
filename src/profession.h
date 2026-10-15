@@ -19,7 +19,6 @@
 
 class Character;
 class JsonObject;
-class avatar;
 class item;
 template<typename T>
 class generic_factory;
@@ -133,18 +132,22 @@ class profession
         std::vector<matype_id> ma_known() const;
         std::vector<matype_id> ma_choices() const;
         bool allows_hobby( const string_id<profession> &hobby )const;
-        int ma_choice_amount;
+        int ma_choice_amount = 0;
         StartingSkillList skills() const;
         const std::vector<mission_type_id> &missions() const;
-        int age_lower = 21;
-        int age_upper = 55;
+        static constexpr int DEFAULT_PROF_AGE_LOWER = 21;
+        static constexpr int DEFAULT_PROF_AGE_UPPER = 55;
+        int age_lower = DEFAULT_PROF_AGE_LOWER;
+        int age_upper = DEFAULT_PROF_AGE_UPPER;
+
+        int starting_trauma;
 
         std::vector<std::pair<string_id<profession>, mod_id>> src;
 
         std::vector<achievement_id> get_requirements() const;
 
         std::map<spell_id, int> spells() const;
-        void learn_spells( avatar &you ) const;
+        void learn_spells( Character &you ) const;
         std::vector<effect_on_condition_id> get_eocs() const;
         //returns the profession id
         profession_id get_profession_id() const;

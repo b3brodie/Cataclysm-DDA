@@ -30,8 +30,12 @@
 #include "units.h"
 #include "units_utility.h"
 
+static const dimension_id dimension_world_default( "default" );
+
 static const faction_id faction_no_faction( "no_faction" );
 
+namespace
+{
 enum class mission_ui_tab_enum : int {
     ACTIVE = 0,
     COMPLETED,
@@ -39,6 +43,7 @@ enum class mission_ui_tab_enum : int {
     POINTS_OF_INTEREST,
     num_tabs
 };
+} // namespace
 
 static mission_ui_tab_enum &operator++( mission_ui_tab_enum &c )
 {
@@ -58,6 +63,8 @@ static mission_ui_tab_enum &operator--( mission_ui_tab_enum &c )
     return c;
 }
 
+namespace
+{
 class mission_ui
 {
         friend class mission_ui_impl;
@@ -104,7 +111,7 @@ class mission_ui_impl : public cataimgui::window
 
 void mission_ui::draw_mission_ui()
 {
-    input_context ctxt;
+    input_context ctxt( "MISSION_UI" );
     mission_ui_impl p_impl;
 
     ctxt.register_navigate_ui_list();
@@ -451,17 +458,17 @@ void mission_ui_impl::draw_selected_description( std::vector<mission *> missions
         // TODO: target does not contain a z-component, targets are assumed to be on z=0
         draw_location( _( "Target:" ), miss->get_target() );
     }
-    std::string dimension = miss->get_dimension();
+    dimension_id mission_dimension = miss->get_dimension();
     // If dimension isn't the default one
-    if( !dimension.empty() ) {
-        draw_label_with_value( _( "Dimension:" ), dimension );
+    if( mission_dimension != dimension_world_default ) {
+        draw_label_with_value( _( "Dimension:" ), mission_dimension.str() );
     }
 }
 
 void mission_ui_impl::draw_selected_description( std::vector<point_of_interest> points_of_interest,
         const int &selected_mission ) const
 {
-    point_of_interest selected_point_of_interest = points_of_interest[selected_mission];
+    const point_of_interest &selected_point_of_interest = points_of_interest[selected_mission];
     ImGui::TextWrapped( _( "Point of Interest: %s" ), selected_point_of_interest.text.c_str() );
     ImGui::Separator();
     draw_location( _( "Target:" ), selected_point_of_interest.pos );
@@ -487,6 +494,7 @@ void mission_ui_impl::draw_location( const std::string &label,
         draw_label_with_value( _( "Distance:" ), distance_str );
     }
 }
+} // namespace
 
 void game::list_missions()
 {

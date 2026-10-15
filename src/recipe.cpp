@@ -1,15 +1,17 @@
 #include "recipe.h"
 
 #include <algorithm>
-#include <climits>
+#include <array>
 #include <cmath>
 #include <initializer_list>
 #include <memory>
 #include <numeric>
 #include <optional>
+#include <set>
 #include <sstream>
 #include <unordered_map>
 
+#include "bonuses.h"
 #include "cached_options.h"
 #include "calendar.h"
 #include "cartesian_product.h"
@@ -26,11 +28,11 @@
 #include "flexbuffer_json.h"
 #include "game_constants.h"
 #include "generic_factory.h"
-#include "inventory.h"
 #include "item.h"
 #include "item_components.h"
 #include "item_contents.h"
 #include "item_group.h"
+#include "item_location.h"
 #include "item_tname.h"
 #include "itype.h"
 #include "json.h"
@@ -43,9 +45,11 @@
 #include "output.h"
 #include "proficiency.h"
 #include "recipe_dictionary.h"
+#include "requirements.h"
 #include "skill.h"
 #include "string_formatter.h"
 #include "string_id_utils.h"
+#include "temp_crafting_inventory.h"
 #include "translations.h"
 #include "type_id.h"
 #include "uistate.h"
@@ -60,6 +64,20 @@ static const morale_type morale_fun_craft( "morale_fun_craft" );
 static const morale_type morale_shitty_craft( "morale_shitty_craft" );
 
 static const std::string flag_FULL_MAGAZINE( "FULL_MAGAZINE" );
+
+namespace
+{
+
+constexpr std::array<std::pair<std::string_view, scaling_stat>, 4> character_requirement_members
+= { {
+        { "str", STAT_STR },
+        { "dex", STAT_DEX },
+        { "int", STAT_INT },
+        { "per", STAT_PER }
+    }
+};
+
+} // namespace
 
 
 std::string recipe::get_description( const Character &crafter ) const
@@ -233,14 +251,6 @@ bool recipe::has_flag( const std::string &flag_name ) const
     return flags.count( flag_name );
 }
 
-struct time_duration_as_moves_reader : public generic_typed_reader<time_duration_as_moves_reader> {
-    int64_t get_next( const JsonValue &jv ) const {
-        time_duration ret;
-        jv.read( ret );
-        return to_moves<int64_t>( ret );
-    }
-};
-
 void recipe::load( const JsonObject &jo, const std::string_view src )
 {
     abstract = jo.has_string( "abstract" );
@@ -360,6 +370,8 @@ void recipe::load( const JsonObject &jo, const std::string_view src )
     optional( jo, was_loaded, "difficulty", difficulty, numeric_bound_reader<int> {0, MAX_SKILL} );
     optional( jo, was_loaded, "flags", flags );
 
+    optional( jo, was_loaded, "character_resources", character_resources );
+
     // automatically set contained if we specify as container
     optional( jo, was_loaded, "contained", contained, false );
     if( jo.has_member( "container" ) ) {
@@ -399,6 +411,21 @@ void recipe::load( const JsonObject &jo, const std::string_view src )
         } else {
             // single requirement
             required_skills[skill_id( sk.get_string( 0 ) )] = sk.get_int( 1 );
+        }
+    }
+
+    if( jo.has_member( "character_requirements" ) ) {
+        character_requirements_.clear();
+        const JsonObject requirements = jo.get_object( "character_requirements" );
+        for( const auto &[member, stat] : character_requirement_members ) {
+            if( !requirements.has_member( member ) ) {
+                continue;
+            }
+            int requirement = 0;
+            mandatory( requirements, false, member, requirement, numeric_bound_reader<int> { 0 } );
+            if( requirement > 0 ) {
+                character_requirements_.emplace( stat, requirement );
+            }
         }
     }
 
@@ -650,6 +677,11 @@ void recipe_step::load( const JsonObject &jo, const std::string &recipe_name, in
     mandatory( jo, false, "activity_level", exertion, activity_level_reader{} );
 
     optional( jo, false, "batch_time_factors", batch_info );
+    if( batch_savings::linear *lin = std::get_if<batch_savings::linear>( &batch_info.data ) ) {
+        if( lin->offset > time ) {
+            jo.throw_error( "batch scaling time greater than step time" );
+        }
+    }
     jo.read( "proficiencies", proficiencies );
 
     if( jo.has_member( "components" ) ) {
@@ -666,6 +698,37 @@ void recipe_step::load( const JsonObject &jo, const std::string &recipe_name, in
                                       + std::to_string( step_index ) );
     requirement_data::load_requirement( jo, step_req_id, false, false );
     reqs_internal.emplace_back( step_req_id, 1 );
+
+    if( jo.has_member( "attention" ) ) {
+        const std::string s = jo.get_string( "attention" );
+        if( s == "none" ) {
+            attention = step_attention::none;
+        } else if( s == "unattended" ) {
+            attention = step_attention::unattended;
+        } else if( s == "supervised" ) {
+            jo.throw_error( "supervised attention not yet supported" );
+        } else {
+            jo.throw_error( "invalid value for \"attention\": " + s );
+        }
+    }
+
+    if( jo.has_member( "max_time" ) ) {
+        time_duration d;
+        mandatory( jo, false, "max_time", d );
+        if( d <= time_duration::from_moves( time ) ) {
+            jo.throw_error( "max_time must exceed step time" );
+        }
+        max_time = d;
+    }
+    if( jo.has_member( "grace_period" ) ) {
+        if( !max_time.has_value() ) {
+            jo.throw_error( "grace_period requires max_time" );
+        }
+        time_duration d;
+        mandatory( jo, false, "grace_period", d );
+        grace_period = d;
+    }
+    optional( jo, false, "unattend_message", unattend_message );
 }
 
 static cata::value_ptr<parameterized_build_reqs> calculate_all_blueprint_reqs(
@@ -775,6 +838,34 @@ static cata::value_ptr<parameterized_build_reqs> calculate_all_blueprint_reqs(
     return result;
 }
 
+static void finalize_nested_recipes( recipe &r )
+{
+    int min_diff = MAX_SKILL;
+    recipe_id easiest_recipe;
+    for( const recipe_id &res : r.nested_category_data ) {
+        if( !res.is_valid() ) {
+            debugmsg( "%s nested recipe %s is an invalid recipe id", r.ident().str(), res.str() );
+            continue;
+        }
+        if( res->is_nested() ) {
+            finalize_nested_recipes( const_cast<recipe &>( res.obj() ) );
+        }
+        if( res.obj().difficulty < min_diff ) {
+            min_diff = res.obj().difficulty;
+            easiest_recipe = res;
+        }
+    }
+    if( easiest_recipe.is_valid() ) {
+        if( easiest_recipe->skill_used.is_valid() ) {
+            r.skill_used = easiest_recipe->skill_used;
+        }
+        if( !easiest_recipe->required_skills.empty() ) {
+            r.required_skills = easiest_recipe->required_skills;
+        }
+    }
+    r.difficulty = min_diff;
+}
+
 void recipe::finalize()
 {
     if( bp_autocalc ) {
@@ -791,6 +882,10 @@ void recipe::finalize()
         add_requirements( reqs_internal );  // root components
         reqs_external.clear();
         reqs_internal.clear();
+
+        // Snapshot the root-only requirements so root tools stay attributable
+        // after per-step requirements merge into requirements_ below.
+        root_requirements_ = requirements_;
 
         for( recipe_step &step : steps_ ) {
             // Resolve each step's external (using) + inline requirements
@@ -842,6 +937,16 @@ void recipe::finalize()
         if( item::find_type( result_ )->default_container_variant.has_value() ) {
             container_variant = item::find_type( result_ )->default_container_variant.value();
         }
+    }
+
+    // Uncrafts always specify charges, so skip.
+    const bool is_uncraft = is_reversible();
+    // The item is blacklisted (e.g. ammo in generic guns)
+    const bool item_exists = result().is_valid();
+    if( !is_uncraft && item_exists && result()->count_by_charges() &&
+        !charges && result()->charges_default() > 1 && !obsolete ) {
+        debugmsg( "Recipe %s creates an item with charges but does not specify quantity.  Default charges is %i.",
+                  id.str(), result()->charges_default() );
     }
 
     std::set<proficiency_id> required;
@@ -899,6 +1004,11 @@ void recipe::finalize()
         name_ = translation::to_translation( string_format( name_.translated(),
                                              result_->nname( makes_amount() ) ) );
     }
+
+    if( is_nested() ) {
+        finalize_nested_recipes( *this );
+    }
+
 }
 
 void recipe::add_requirements( const std::vector<std::pair<requirement_id, int>> &reqs )
@@ -1054,7 +1164,7 @@ static void set_new_comps( item &newit, int amount, item_components *used, bool 
 std::vector<item> recipe::create_result( bool set_components, bool is_food,
         item_components *used ) const
 {
-    item newit( result_, calendar::turn, item::default_charges_tag{} );
+    item newit( result_, calendar::turn );
 
     if( !variant().empty() ) {
         newit.set_itype_variant( variant() );
@@ -1069,14 +1179,28 @@ std::vector<item> recipe::create_result( bool set_components, bool is_food,
         newit.inherit_flags( *used, *this );
     }
 
+    // Inherit faults during crafting.
+    if( used ) {
+        for( auto &pair : *used ) {
+            for( item &it : pair.second ) {
+                for( fault_id some_fault : it.faults ) {
+                    // Does nothing if item can't have the fault. Always safe to call.
+                    newit.set_fault( some_fault );
+                }
+            }
+        }
+    }
+
+
     for( const flag_id &flag : flags_to_delete ) {
         newit.unset_flag( flag );
     }
 
     // If the recipe has a `FULL_MAGAZINE` flag, fill it with ammo
     if( newit.is_magazine() && has_flag( flag_FULL_MAGAZINE ) ) {
-        newit.ammo_set( newit.ammo_default(),
-                        newit.ammo_capacity( item::find_type( newit.ammo_default() )->ammo->type ) );
+        if( const std::optional<ammotype> at = item::ammotype_of( newit.ammo_default() ) ) {
+            newit.ammo_set( newit.ammo_default(), newit.ammo_capacity( *at ) );
+        }
     }
 
     // if the first component has compatible pockets, try to preserve the contents
@@ -1092,7 +1216,7 @@ std::vector<item> recipe::create_result( bool set_components, bool is_food,
         }
     }
 
-    int amount = charges ? *charges : newit.count();
+    int amount = charges ? *charges : 1;
 
     bool is_cooked = hot_result() || removes_raw();
     if( set_components ) {
@@ -1269,12 +1393,15 @@ std::string recipe::required_proficiencies_string( const Character *c ) const
     return required;
 }
 
+namespace
+{
 struct prof_penalty {
     proficiency_id id;
     float time_mult;
     float skill_penalty;
     bool mitigated = false;
 };
+} // namespace
 
 static std::string profstring( const prof_penalty &prof,
                                std::string &color,
@@ -1425,47 +1552,30 @@ float recipe::proficiency_time_maluses_for_step(
 }
 
 double recipe::step_budget_moves( const Character &guy, size_t step_idx, int batch,
-                                  const crafting_cost_context &ctx ) const
+                                  const crafting_cost_context &ctx,
+                                  recipe_time_flag flags ) const
 {
     cata_assert( step_idx < steps_.size() );
     const recipe_step &s = steps_[step_idx];
-    double t = s.time * proficiency_time_maluses_for_step( guy, s, ctx.books );
+    double t = s.time;
+    if( ( flags & recipe_time_flag::ignore_proficiencies ) != recipe_time_flag::ignore_proficiencies ) {
+        t *= proficiency_time_maluses_for_step( guy, s, ctx.books );
+    }
     if( step_idx < ctx.tool_speeds.size() ) {
         t *= ctx.tool_speeds[step_idx];
     }
     return s.batch_info.apply( t, batch );
 }
 
-// Crafter-aware quality level check for a single item.
-// Mirrors item::get_quality_nonrecursive but uses the given crafter for
-// charged_qualities instead of get_player_character().
-static int get_quality_for_crafter( const item &it, const quality_id &qual,
-                                    const Character &crafter )
-{
-    int result = INT_MIN;
-    auto qit = it.type->qualities.find( qual );
-    if( qit != it.type->qualities.end() ) {
-        result = qit->second.level;
-    }
-    if( !it.type->charged_qualities.empty() && it.ammo_sufficient( &crafter ) ) {
-        auto cit = it.type->charged_qualities.find( qual );
-        if( cit != it.type->charged_qualities.end() ) {
-            result = std::max( result, cit->second.level );
-        }
-    }
-    return result;
-}
-
-float best_quality_speed_modifier( const read_only_visitable &inv,
+float best_quality_speed_modifier( const temp_crafting_inventory &inv,
                                    const Character &crafter,
                                    const quality_id &qual, int level )
 {
     bool found = false;
     float best = 1.0f;
-    inv.visit_items( [&]( item * e, item * ) {
-        // Use crafter-aware qualification, not get_quality() which
-        // uses get_player_character() for charged qualities.
-        if( get_quality_for_crafter( *e, qual, crafter ) >= level ) {
+    inv.visit_items( [&]( item_location e ) {
+        // Crafter-aware: a charged quality otherwise resolves through the avatar.
+        if( provider_quality_level( *e, qual, &crafter, false ) >= level ) {
             float s = e->get_quality_speed( qual, level, &crafter );
             if( !found || s < best ) {
                 best = s;
@@ -1474,8 +1584,9 @@ float best_quality_speed_modifier( const read_only_visitable &inv,
         }
         return VisitResponse::NEXT;
     } );
-    // Character-provided qualities (bionics, mutations) have no speed modifier.
-    if( !found && crafter.has_quality( qual, level ) ) {
+    // Character-provided qualities (bionics, mutations) have no speed modifier.  Items
+    // reach this through the inventory alone, so a reserved one stays hidden.
+    if( !found && crafter.has_intrinsic_quality( qual, level ) ) {
         return 1.0f;
     }
     return best;
@@ -1486,7 +1597,7 @@ std::vector<float> compute_tool_speeds( const recipe &rec, const Character &craf
     if( !rec.has_steps() ) {
         return {};
     }
-    const read_only_visitable &inv = crafter.crafting_inventory();
+    const temp_crafting_inventory &inv = crafter.crafting_inventory();
     std::vector<float> result;
     result.reserve( rec.steps().size() );
     for( const recipe_step &step : rec.steps() ) {
@@ -1495,9 +1606,10 @@ std::vector<float> compute_tool_speeds( const recipe &rec, const Character &craf
             bool found = false;
             float best_in_group = 1.0f;
             for( const quality_requirement &alt : group ) {
-                // Crafter-aware qualification check (no get_player_character leak)
+                // The inventory is the whole item pool; the crafter contributes only
+                // what no item can supply.
                 if( !inv.has_quality( alt.type, alt.level, alt.count ) &&
-                    !crafter.has_quality( alt.type, alt.level, alt.count ) ) {
+                    !crafter.has_intrinsic_quality( alt.type, alt.level, alt.count ) ) {
                     continue;
                 }
                 float s = best_quality_speed_modifier( inv, crafter, alt.type, alt.level );
@@ -1647,6 +1759,26 @@ static std::string required_skills_as_string( const std::vector<std::pair<skill_
     } );
 }
 
+bool recipe::character_meets_requirements( const Character &character ) const
+{
+    for( const auto &[stat, requirement] : character_requirements_ ) {
+        if( character.get_primary_stat_value( stat ) < requirement ) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool recipe::has_character_requirements() const
+{
+    return !character_requirements_.empty();
+}
+
+const std::map<scaling_stat, int> &recipe::get_character_requirements() const
+{
+    return character_requirements_;
+}
+
 std::string recipe::primary_skill_string( const Character &c ) const
 {
     std::vector<std::pair<skill_id, int>> skillList;
@@ -1793,12 +1925,13 @@ std::function<bool( const item & )> recipe::get_component_filter(
     std::function<bool( const item & )> magazine_filter = return_true<item>;
     if( has_flag( "NEED_FULL_MAGAZINE" ) ) {
         magazine_filter = []( const item & component ) {
+            if( !component.is_magazine() ) {
+                return true;
+            }
             if( component.ammo_remaining( ) == 0 ) {
                 return false;
             }
-            return !component.is_magazine() ||
-                   ( component.ammo_remaining( ) >= component.ammo_capacity(
-                         component.ammo_data()->ammo->type ) );
+            return component.ammo_remaining() >= component.ammo_capacity( component.ammo_data()->ammo->type );
         };
     }
 
@@ -1841,6 +1974,29 @@ void recipe::apply_positive_morale_mods( Character &guy ) const
 bool recipe::npc_can_craft( std::string & ) const
 {
     return true;
+}
+
+bool recipe::has_attention_steps() const
+{
+    for( const recipe_step &s : steps_ ) {
+        if( s.attention != step_attention::none ) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool recipe::has_remaining_attention_steps( int from_step ) const
+{
+    if( from_step < 0 ) {
+        from_step = 0;
+    }
+    for( int i = from_step; i < static_cast<int>( steps_.size() ); ++i ) {
+        if( steps_[i].attention != step_attention::none ) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool recipe::is_practice() const
@@ -2082,6 +2238,30 @@ void batch_savings::deserialize( const JsonValue &jv )
         data = ret;
     } else {
         jo.throw_error( string_format( "Unrecognized mode %s", mode ) );
+    }
+}
+
+void vitamin_resource_cost::deserialize( const JsonObject &jo )
+{
+    mandatory( jo, false, "vitamin", vitamin );
+    mandatory( jo, false, "value", value, numeric_bound_reader<int> { 0 } );
+    optional( jo, false, "safe_level", safe_level );
+}
+
+void character_resource_costs::deserialize( const JsonObject &jo )
+{
+    *this = {};
+
+    optional( jo, false, "mana", mana, numeric_bound_reader<int> { 0 } );
+    optional( jo, false, "stamina", stamina, numeric_bound_reader<int> { 0 } );
+    optional( jo, false, "vitamins", vitamins );
+
+    std::set<vitamin_id> loaded_vitamins;
+    for( const vitamin_resource_cost &resource : vitamins ) {
+        if( !loaded_vitamins.insert( resource.vitamin ).second ) {
+            jo.throw_error( string_format( "duplicate vitamin character resource '%s'",
+                                           resource.vitamin.str() ) );
+        }
     }
 }
 

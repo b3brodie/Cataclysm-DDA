@@ -17,7 +17,7 @@
 #include "game.h"
 #include "item.h"
 #include "map.h"
-#include "map_helpers.h"
+#include "map_helpers_tests.h"
 #include "mutation.h"
 #include "player_helpers.h"
 #include "point.h"
@@ -173,6 +173,8 @@ TEST_CASE( "avatar_diving", "[diving]" )
     g->vertical_shift( 0 );
 }
 
+namespace
+{
 struct swimmer_stats {
     int strength = 0;
     int dexterity = 0;
@@ -230,6 +232,7 @@ struct swim_result {
     int move_cost = 0;
     int steps = 0;
 };
+} // namespace
 
 static const std::unordered_map<std::string, swimmer_stats> stats_map = {
     {"minimum", { 4, 4 }},
@@ -257,6 +260,8 @@ static const std::unordered_map<std::string, swimmer_traits> traits_map = {
     {"webbed hands and feet", {{"WEBBED", "WEBBED_FEET"}}},
 };
 
+namespace
+{
 struct swim_scenario {
     move_mode_id move_mode;
     swimmer_config config;
@@ -275,6 +280,7 @@ struct swim_scenario {
                               config.stats_name, config.skills_name, config.gear_name, config.traits_name );
     }
 };
+} // namespace
 
 static int swimming_steps( avatar &swimmer )
 {

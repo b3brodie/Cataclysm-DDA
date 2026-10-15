@@ -68,6 +68,8 @@ namespace io
             case enchant_vals::mod::INTELLIGENCE: return "INTELLIGENCE";
             case enchant_vals::mod::SPEED: return "SPEED";
             case enchant_vals::mod::ATTACK_SPEED: return "ATTACK_SPEED";
+            case enchant_vals::mod::AIMING_SPEED: return "AIMING_SPEED";
+            case enchant_vals::mod::RELOADING_SPEED: return "RELOADING_SPEED";
             case enchant_vals::mod::MOVE_COST: return "MOVE_COST";
             case enchant_vals::mod::METABOLISM: return "METABOLISM";
             case enchant_vals::mod::MAX_MANA: return "MAX_MANA";
@@ -142,6 +144,7 @@ namespace io
             case enchant_vals::mod::EXTRA_ELEC_PAIN: return "EXTRA_ELEC_PAIN";
             case enchant_vals::mod::ITEM_ATTACK_SPEED: return "ITEM_ATTACK_SPEED";
             case enchant_vals::mod::EQUIPMENT_DAMAGE_CHANCE: return "EQUIPMENT_DAMAGE_CHANCE";
+            case enchant_vals::mod::THEORETICAL_SKILL_CATCHUP_BONUS: return "THEORETICAL_SKILL_CATCHUP_BONUS";
             case enchant_vals::mod::CLIMATE_CONTROL_HEAT: return "CLIMATE_CONTROL_HEAT";
             case enchant_vals::mod::CLIMATE_CONTROL_CHILL: return "CLIMATE_CONTROL_CHILL";
             case enchant_vals::mod::COMBAT_CATCHUP: return "COMBAT_CATCHUP";
@@ -173,6 +176,7 @@ namespace io
             case enchant_vals::mod::STAMINA_REGEN_MOD: return "STAMINA_REGEN_MOD";
             case enchant_vals::mod::MOVEMENT_EXERTION_MODIFIER: return "MOVEMENT_EXERTION_MODIFIER";
             case enchant_vals::mod::WEAKPOINT_ACCURACY: return "WEAKPOINT_ACCURACY";
+            case enchant_vals::mod::BLEEDING_RATE: return "BLEEDING_RATE";
             case enchant_vals::mod::WEIGHT: return "WEIGHT";
             case enchant_vals::mod::MOTION_ALARM: return "MOTION_ALARM";
             case enchant_vals::mod::TOTAL_WEIGHT: return "TOTAL_WEIGHT";
@@ -203,9 +207,9 @@ bool string_id<enchantment>::is_valid() const
 }
 
 template<typename TKey>
-void load_add_and_multiply_dbl_or_var( const JsonObject &jo, std::string_view array_key,
-                                       const std::string &type_key, std::map<TKey, dbl_or_var> &add_map,
-                                       std::map<TKey, dbl_or_var> &mult_map )
+static void load_add_and_multiply_dbl_or_var( const JsonObject &jo, std::string_view array_key,
+        const std::string &type_key, std::map<TKey, dbl_or_var> &add_map,
+        std::map<TKey, dbl_or_var> &mult_map )
 {
     if( jo.has_array( array_key ) ) {
         for( const JsonObject value_obj : jo.get_array( array_key ) ) {
@@ -239,8 +243,8 @@ double enchant_cache::get_value( const TKey &value, const std::map<TKey, double>
 }
 
 template<typename TKey>
-void load_add_and_multiply( const JsonObject &jo, std::string_view array_key,
-                            const std::string &type_key, std::map<TKey, double> &add_map, std::map<TKey, double> &mult_map )
+static void load_add_and_multiply( const JsonObject &jo, std::string_view array_key,
+                                   const std::string &type_key, std::map<TKey, double> &add_map, std::map<TKey, double> &mult_map )
 {
     if( jo.has_array( array_key ) ) {
         for( const JsonObject value_obj : jo.get_array( array_key ) ) {

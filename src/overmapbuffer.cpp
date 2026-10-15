@@ -10,6 +10,7 @@
 #include <optional>
 #include <string>
 #include <tuple>
+#include <type_traits>
 
 #include "basecamp.h"
 #include "calendar.h"
@@ -40,7 +41,6 @@
 #include "mtype.h"
 #include "npc.h"
 #include "omdata.h"
-#include "options.h"
 #include "overmap.h"
 #include "overmap_connection.h"
 #include "overmap_types.h"
@@ -272,26 +272,14 @@ void overmap_global_state::clear()
     unique_special_count.clear();
     unique_special_decks.clear();
     highway_intersections.clear();
+    placed_regions.clear();
     overmap_count = 0;
     major_river_count = 0;
 }
 
 const region_settings &overmapbuffer::get_settings( const tripoint_abs_omt &p )
 {
-    overmap *om = get_om_global( p ).om;
-    return om->get_settings();
-}
-
-const region_settings &overmapbuffer::get_default_settings( const point_abs_om &p )
-{
-    const std::string rsettings_id = get_option<std::string>( "DEFAULT_REGION" );
-    const region_settings_id region_settings_default( rsettings_id );
-
-    if( !region_settings_default.is_valid() ) {
-        debugmsg( "overmap%s: can't find region '%s'", p.to_string(),
-                  rsettings_id.c_str() ); // gonna die now =[
-    }
-    return *region_settings_default;
+    return *get_overmap_region( project_to<coords::om>( p ) );
 }
 
 void overmapbuffer::add_note( const tripoint_abs_omt &p, const std::string &message )
@@ -926,6 +914,12 @@ std::optional<mapgen_arguments> *overmapbuffer::mapgen_args( const tripoint_abs_
     return om_loc.om->mapgen_args( om_loc.local );
 }
 
+std::vector<pp_resolved_generator> *overmapbuffer::pp_decisions( const tripoint_abs_omt &p )
+{
+    const overmap_with_local_coords om_loc = get_om_global( p );
+    return om_loc.om->pp_decisions( om_loc.local );
+}
+
 std::string *overmapbuffer::join_used_at( const std::pair<tripoint_abs_omt, cube_direction> &p )
 {
     const overmap_with_local_coords om_loc = get_om_global( p.first );
@@ -994,6 +988,7 @@ overmap_path_params overmap_path_params::for_player()
     ret.set_cost( oter_travel_cost_type::road, 24 );
     ret.set_cost( oter_travel_cost_type::dirt_road, 24 );
     ret.set_cost( oter_travel_cost_type::field, 36 );
+    ret.set_cost( oter_travel_cost_type::crop_field, 54 );
     ret.set_cost( oter_travel_cost_type::trail, 43 );
     ret.set_cost( oter_travel_cost_type::shore, 48 );
     ret.set_cost( oter_travel_cost_type::forest, 72 );
@@ -1024,6 +1019,8 @@ overmap_path_params overmap_path_params::for_land_vehicle( float offroad_coeff, 
     ret.set_cost( oter_travel_cost_type::road, 8 ); // limited by vehicle autodrive speed
     const int field_cost = can_offroad ? std::lround( 12 / std::min( 1.0f, offroad_coeff ) ) : -1;
     ret.set_cost( oter_travel_cost_type::field, field_cost );
+    ret.set_cost( oter_travel_cost_type::crop_field,
+                  can_offroad ? std::lround( 36 / std::min( 1.0f, offroad_coeff ) ) : -1 );
     ret.set_cost( oter_travel_cost_type::dirt_road, field_cost );
     ret.set_cost( oter_travel_cost_type::trail,
                   ( can_offroad && tiny ) ? field_cost + 8 : -1 );
@@ -1050,6 +1047,33 @@ overmap_path_params overmap_path_params::for_aircraft()
     overmap_path_params ret;
     ret.set_cost( oter_travel_cost_type::air, 8 ); // limited by vehicle autodrive speed
     ret.allow_diagonal = false;
+    return ret;
+}
+
+// For the for-loop in the below function.
+using enum_traits_int = std::underlying_type_t<oter_travel_cost_type>;
+static constexpr enum_traits_int max = static_cast<enum_traits_int>
+                                       ( enum_traits<oter_travel_cost_type>::last );
+overmap_path_params overmap_path_params::flatten_pathfinding_costs( overmap_path_params orig )
+{
+    overmap_path_params ret = std::move( orig );
+
+    for( enum_traits_int i = 0; i < max; ++i ) {
+        // In order to make a more direct path we take the logarithm (base 2) of the existing travel cost.
+        // This allows the pathfinding to consider most passable terrains as 'close enough', while still
+        // avoiding any really bad routes, and never pathing into impassable terrains.
+
+        oter_travel_cost_type checked = static_cast<oter_travel_cost_type>( i );
+
+        if( ret.travel_cost_per_type.find( checked ) == ret.travel_cost_per_type.end() ) {
+            continue; // Value doesn't already exist in the map, skip.
+        }
+        if( ret.travel_cost_per_type[checked] < 1 ) {
+            continue; // Impassable, skip.
+        }
+        ret.travel_cost_per_type[checked] = log2( ret.travel_cost_per_type[checked] );
+    }
+
     return ret;
 }
 
@@ -1094,7 +1118,7 @@ pf::simple_path<tripoint_abs_omt> overmapbuffer::get_travel_path(
 
     constexpr int radius = 4 * OMAPX; // radius of search in OMTs = 4 overmaps
     const pf::simple_path<tripoint_abs_omt> &path = pf::find_overmap_path( src, dest, radius, estimate,
-            g->display_om_pathfinding_progress, std::nullopt, params.allow_diagonal );
+            game::display_om_pathfinding_progress, std::nullopt, params.allow_diagonal );
     return path;
 }
 
@@ -2039,7 +2063,6 @@ void overmapbuffer::display_description_at( const tripoint_abs_sm &where, bool d
         if( draw_origin ) {
             ImGui::NewLine();
             cataimgui::TextColoredParagraph( c_light_gray, get_origin( oter->get_type_id()->src ) );
-            ImGui::NewLine();
         }
     };
 

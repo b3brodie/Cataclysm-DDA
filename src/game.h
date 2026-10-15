@@ -93,6 +93,7 @@ class spell_events;
 class static_popup;
 class stats_tracker;
 class timed_event_manager;
+class item_wakeup_manager;
 class ui_adaptor;
 class uilist;
 class vehicle;
@@ -138,13 +139,13 @@ struct pulp_data {
     // how far the splatter goes
     int mess_radius = 1;
     // how much damage you deal to corpse every second, average of multiple values
-    float nominal_pulp_power;
+    float nominal_pulp_power = 0.0f;
     // The actual power produced, adjusted based on time adjustments.
-    float pulp_power;
+    float pulp_power = 0.0f;
     // how much stamina is consumed after each punch
-    float pulp_effort;
+    float pulp_effort = 0.0f;
     // time to pulp the corpse
-    int time_to_pulp;
+    int time_to_pulp = 0;
     // potential prof we can learn by pulping
     std::optional<proficiency_id> unknown_prof;
     // if monster has PULP_PRYING flag, can you pry armor faster using tool
@@ -190,13 +191,24 @@ class game
         friend stats_tracker &get_stats();
         friend scent_map &get_scent();
         friend timed_event_manager &get_timed_events();
+        friend item_wakeup_manager &get_item_wakeups();
         friend memorial_logger &get_memorial();
-        friend bool do_turn();
         friend bool turn_handler::cleanup_at_end();
         friend global_variables &get_globals();
     public:
         game();
         ~game();
+
+        /*
+        * MAIN GAME LOOP
+        *
+        * Process a `turn`, equal to one in-game second, by doing two things:
+        * 1. spend and replenish Creature::moves -- for `avatar`, `npc`, `monster`
+        * 2. handle game systems (weather, missions, fields, see below)
+        *
+        * @return true if game is over (death, saved, quit, etc)
+        */
+        bool do_turn();
 
         /** Loads static data that does not depend on mods or similar. */
         void load_static_data();
@@ -338,16 +350,15 @@ class game
          * @param npc_travellers vector of NPCs that should be brought along when travelling to another dimension
          * @param veh pointer to a vehicle to bring along.
          */
-        bool travel_to_dimension( const std::string &prefix, const std::string &region_type,
+        bool travel_to_dimension( dimension_id dimension_destination,
                                   const std::vector<npc *> &npc_travellers,
                                   const std::vector<item_location> &item_travellers,
                                   std::optional<tripoint_bub_ms> item_travellers_location,
                                   vehicle *veh = nullptr );
         /**
          * Retrieve the identifier of the current dimension.
-         * TODO: this should be a dereferencable id that gives properties of the dimension.
          */
-        std::string get_dimension_prefix() {
+        dimension_id get_dimension_prefix() {
             return dimension_prefix;
         }
 
@@ -628,6 +639,7 @@ class game
         void reload_npcs();
         void remove_npc( character_id const &id );
         const kill_tracker &get_kill_tracker() const;
+        void clear_kill_tracker() const;
         stats_tracker &stats();
         achievements_tracker &achievements();
         /** Add follower id to set of followers. */
@@ -796,13 +808,14 @@ class game
         int get_zoom() const;
         int get_moves_since_last_save() const;
         int get_user_action_counter() const;
+        void handle_progress_ui();
 
         /** Saves a screenshot of the current viewport, as a PNG file, to the given location.
         * @param file_path: A full path to the file where the screenshot should be saved.
         * @note: Only works for SDL/TILES (otherwise the function returns `false`). A window (more precisely, a viewport) must already exist and the SDL renderer must be valid.
         * @returns `true` if the screenshot generation was successful, `false` otherwise.
         */
-        bool take_screenshot( const std::string &file_path ) const;
+        bool take_screenshot( std::string_view file_path ) const;
         /** Saves a screenshot of the current viewport, as a PNG file. Filesystem location is derived from the current world and character.
         * @note: Only works for SDL/TILES (otherwise the function returns `false`). A window (more precisely, a viewport) must already exist and the SDL renderer must be valid.
         * @returns `true` if the screenshot generation was successful, `false` otherwise.
@@ -872,7 +885,7 @@ class game
         // TILES only, in curses this does nothing
         void draw_highlight( const tripoint_bub_ms &p );
         // Draws an asynchronous animation at p with tile_id as its sprite. If ncstr is specified, it will also be displayed in curses.
-        void draw_async_anim( const tripoint_bub_ms &p, const std::string &tile_id,
+        void draw_async_anim( const tripoint_bub_ms &p, std::string_view tile_id,
                               const std::string &ncstr = "",
                               const nc_color &nccol = c_black );
         void draw_radiation_override( const tripoint_bub_ms &p, int rad );
@@ -1021,9 +1034,9 @@ class game
         void print_fields_info( const tripoint_bub_ms &lp, const catacurses::window &w_look, int column,
                                 int &line );
         void print_terrain_info( const tripoint_bub_ms &lp, const catacurses::window &w_look,
-                                 std::string_view area_name, int column, int &line );
+                                 std::string_view area_name, int column, int &line, bool visible );
         void print_furniture_info( const tripoint_bub_ms &lp, const catacurses::window &w_look, int column,
-                                   int &line );
+                                   int &line, bool visible );
         void print_trap_info( const tripoint_bub_ms &lp, const catacurses::window &w_look, int column,
                               int &line );
         void print_part_con_info( const tripoint_bub_ms &lp, const catacurses::window &w_look, int column,
@@ -1148,6 +1161,7 @@ class game
         live_view &liveview; // NOLINT(cata-serialize)
         pimpl<scent_map> scent_ptr; // NOLINT(cata-serialize)
         pimpl<timed_event_manager> timed_event_manager_ptr; // NOLINT(cata-serialize)
+        pimpl<item_wakeup_manager> item_wakeup_manager_ptr;
         pimpl<event_bus> event_bus_ptr; // NOLINT(cata-serialize)
         pimpl<stats_tracker> stats_tracker_ptr;
         pimpl<achievements_tracker> achievements_tracker_ptr;
@@ -1379,9 +1393,8 @@ class game
         //currently used as a hacky workaround for dimension swapping
         bool swapping_dimensions = false; // NOLINT (cata-serialize)
     private:
-        // Stores the currently occupied dimension.
-        // TODO: should be an id instead of a string.
-        std::string dimension_prefix;
+        // the currently occupied dimension
+        dimension_id dimension_prefix;
 };
 
 // Returns temperature modifier from direct heat radiation of nearby sources

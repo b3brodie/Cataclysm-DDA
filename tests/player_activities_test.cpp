@@ -17,7 +17,6 @@
 #include "enums.h"
 #include "flag.h"
 #include "handle_liquid.h"
-#include "inventory.h"
 #include "item.h"
 #include "item_group.h"
 #include "item_location.h"
@@ -26,11 +25,11 @@
 #include "iuse_actor.h"
 #include "map.h"
 #include "map_helpers.h"
+#include "map_helpers_tests.h"
 #include "mapdata.h"
 #include "monster.h"
 #include "monster_helpers.h"
 #include "options_helpers.h"
-#include "pimpl.h"
 #include "player_activity.h"
 #include "player_helpers.h"
 #include "pocket_type.h"
@@ -1994,7 +1993,7 @@ static const std::vector<std::function<player_activity()>> test_activities {
         dummy->wear_item( item( itype_test_backpack, calendar::turn ), false );
         item_location target = dummy->i_add( item( itype_test_oxytorch, calendar::turn ) );
         item_location ammo = dummy->i_add( item( itype_test_weldtank, calendar::turn ) );
-        item::reload_option opt( dummy, target, ammo );
+        item::reload_option opt( dummy, target, ammo, item::reload_option::POCKET_FALLBACK );
         return player_activity( reload_activity_actor( std::move( opt ) ) );
     },
     [] { return player_activity( safecracking_activity_actor( get_avatar().pos_bub() + tripoint_rel_ms::north ) ); },
@@ -2012,7 +2011,6 @@ static const std::vector<std::function<player_activity()>> test_activities {
 
 static void cleanup( avatar &dummy )
 {
-    dummy.inv->clear();
     clear_map_without_vision();
 
     REQUIRE( dummy.activity.get_distractions().empty() );

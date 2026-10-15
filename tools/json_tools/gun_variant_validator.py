@@ -71,6 +71,7 @@ GUNS_BLACKLIST = {
     "khuunaofaai",
     "exodii_plasma_fan",
     "exodii_plasma_projectile",
+    "nl_chem_thrower",
 }
 AMMO_BLACKLIST = {
     "arrow",
@@ -180,6 +181,7 @@ BAD_COMMON_TOKENS = {
     "revolver",
     "shotgun",
     "handgun",
+    "five-shooter",
     "six-shooter",
     "SMG",
     "submachine gun",
@@ -226,6 +228,7 @@ TYPE_DESCRIPTORS = [
     "revolver",
     "rifle",
     "shotgun",
+    "five-shooter",
     "six-shooter",
     "SMG",
     "submachine gun",

@@ -1,4 +1,3 @@
-#include <functional>
 #include <string>
 #include <vector>
 
@@ -13,6 +12,7 @@
 #include "item_location.h"
 #include "itype.h"
 #include "map_helpers.h"
+#include "map_helpers_tests.h"
 #include "npc.h"
 #include "player_activity.h"
 #include "player_helpers.h"

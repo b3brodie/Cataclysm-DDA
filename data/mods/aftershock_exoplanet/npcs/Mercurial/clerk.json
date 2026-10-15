@@ -5,7 +5,12 @@
     "name": { "str": "Mercurial augmentation tech." },
     "job_description": "Outfitter Clerk",
     "common": false,
-    "traits": [ { "group": "BG_survival_story_POLICE" }, { "group": "NPC_starting_traits" }, { "group": "Appearance_demographics" } ],
+    "traits": [
+      { "group": "BG_survival_story_POLICE" },
+      { "trait": "RETURN_TO_START_POS" },
+      { "group": "NPC_starting_traits" },
+      { "group": "Appearance_demographics" }
+    ],
     "bonus_str": { "rng": [ 0, 1 ] },
     "bonus_dex": { "rng": [ 0, 2 ] },
     "bonus_int": { "rng": [ -2, 0 ] },
@@ -23,7 +28,12 @@
     "ammo": 100,
     "magazine": 100,
     "subtype": "collection",
-    "items": [ { "item": "afs_gene_disp", "count": [ 3, 10 ] }, { "item": "afs_gene_template", "count": [ 2, 3 ] } ]
+    "items": [
+      { "item": "afs_gene_disp", "count": [ 3, 10 ] },
+      { "item": "afs_gene_template", "count": [ 2, 3 ] },
+      { "item": "afs_combat_cryo_xl", "count": [ 2, 3 ] },
+      { "group": "afs_frontier_xl_cryo_g", "count": [ 2, 3 ] }
+    ]
   },
   {
     "type": "item_group",
@@ -42,7 +52,7 @@
     "name_suffix": "Mercurial augmentation tech.",
     "class": "NC_AUGUSTMOON_GENETECH_TRADER",
     "attitude": 0,
-    "mission": 3,
+    "mission": "SHOPKEEP",
     "chat": "TALK_AUGUSTMOON_GENETECH_TRADER",
     "faction": "mercurial"
   },

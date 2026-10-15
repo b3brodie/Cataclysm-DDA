@@ -19,11 +19,11 @@
 #include "auto_pickup.h"
 #include "calendar.h"
 #include "character.h"
+#include "colony.h"
 #include "color.h"
 #include "compatibility.h"
 #include "coordinates.h"
 #include "dialogue_chatbin.h"
-#include "inventory.h"
 #include "item.h"
 #include "item_location.h"
 #include "line.h"
@@ -31,8 +31,11 @@
 #include "map_scale_constants.h"
 #include "memory_fast.h"
 #include "mission_companion.h"
+#include "npc_arbitration.h"
 #include "npc_attack.h"
 #include "npc_opinion.h"
+#include "npc_sleep.h"
+#include "npc_trip.h"
 #include "pimpl.h"
 #include "point.h"
 #include "ret_val.h"
@@ -65,6 +68,10 @@ struct faction_price_rule;
 
 constexpr int NPC_PERSONALITY_MIN = -10;
 constexpr int NPC_PERSONALITY_MAX = 10;
+// Normally 16-55, but potential violence towards *underage* NPCs is a more problematic than towards adults
+// Note: npcs with ages defined in json files are not limited to these values.
+constexpr int NPC_RAND_AGE_MIN = 18;
+constexpr int NPC_RAND_AGE_MAX = 55;
 constexpr float NPC_DANGER_VERY_LOW = 5.0f;
 constexpr float NPC_MONSTER_DANGER_MAX = 150.0f;
 constexpr float NPC_CHARACTER_DANGER_MAX = 250.0f;
@@ -166,16 +173,13 @@ enum npc_mission : int {
     NPC_MISSION_LEGACY_1,
     NPC_MISSION_SHELTER, // Stay in shelter, introduce player to game
     NPC_MISSION_SHOPKEEP, // Stay still unless combat or something and sell stuff
-
-    NPC_MISSION_LEGACY_2,
-    NPC_MISSION_LEGACY_3,
-
     NPC_MISSION_GUARD_ALLY, // Assigns an allied NPC to guard a position
     NPC_MISSION_GUARD, // Assigns a non-allied NPC to remain in place
     NPC_MISSION_GUARD_PATROL, // Assigns a non-allied NPC to guard and investigate
     NPC_MISSION_ACTIVITY, // Perform a player_activity until it is complete
     NPC_MISSION_TRAVELLING,
-    NPC_MISSION_CAMP_RESIDENT // Attached to camp, works jobs + has free time
+    NPC_MISSION_CAMP_RESIDENT, // Attached to camp, works jobs + has free time
+    NPC_MISSION_LAST
 };
 
 struct npc_companion_mission {
@@ -555,7 +559,32 @@ struct npc_short_term_cache {
     std::map<direction, float> threat_map;
     // BT goal commitment: persists across turns until completed or
     // overridden by a higher-priority goal. Empty = no commitment.
-    std::string committed_goal;
+    npc_intention intention;
+    // last resolved walk, keyed on turn, position and spec only: map, reach or rule changes
+    // within the turn don't invalidate it
+    mutable npc_trip last_trip;
+    npc_retained_trip retained_trip;
+    // diagnostic count of route() calls made while resolving self-care walks
+    mutable int trip_route_calls = 0;
+    // last sleep search found no spot the NPC may use; holds sleep back until it
+    // expires or anything it was judged on changes
+    struct rest_cooldown {
+        time_point until = calendar::turn_zero;
+        bool leader_asleep = false;
+        bool leader_resting = false;
+        npc_reach_snapshot reach;
+        std::optional<tripoint_abs_ms> goto_target;
+        tripoint_abs_ms pos;
+        float next_floor = 0.0f;
+    };
+    rest_cooldown no_rest_option;
+    // one settling decision per turn, shared by the lying_down effect and review_rest();
+    // keyed on the turn only, so whoever starts a new settle resets it
+    struct rest_review_memo {
+        std::optional<time_point> turn;
+        std::optional<npc_challenger> interruption;
+    };
+    mutable rest_review_memo rest_review;
 
     // Result of the last execute_need_goal call.
     enum class need_result : int {
@@ -930,11 +959,13 @@ class npc : public Character
         /// Returns the current activity name (reading, disassembling, etc.), or "nothing"
         std::string get_current_activity() const;
 
+        void ensure_portrait_valid() override;
+
         // Interaction with the player
         void form_opinion( const Character &you );
         npc_opinion get_opinion_values( const Character &you ) const;
         std::string pick_talk_topic( const Character &u );
-        std::string const &get_specified_talk_topic( std::string const &topic_id );
+        std::string get_specified_talk_topic( std::string const &topic_id );
         float character_danger( const Character &u ) const;
         float vehicle_danger( int radius ) const;
         void pretend_fire( npc *source, int shots, item &gun ); // fake ranged attack for hallucination
@@ -976,9 +1007,10 @@ class npc : public Character
         bool is_leader() const;
         // Leading, following, or waiting for the player
         bool is_walking_with() const;
-        // Can actively close-follow right now: walking_with + follow_close
-        // rule + can move + no vehicle mismatch with player.
-        bool should_follow_close() const;
+        // FOLLOW/WAIT (not LEAD), mobile, vehicle-compatible with player.
+        bool can_follow_player_now() const;
+        // Spacing preference: follow_close on -> follow_distance(), off -> 6.
+        int desired_follow_radius() const;
         // In the same faction
         bool is_ally( const Character &p ) const override;
         // Is an ally of the player
@@ -1025,8 +1057,6 @@ class npc : public Character
         // Use and assessment of items
         // The minimum value to want to pick up an item
         int minimum_item_value() const;
-        // Find the worst value in our inventory
-        void update_worst_item_value();
         double value( const item &it ) const;
         double value( const item &it, double market_price ) const;
         faction_price_rule const *get_price_rules( item const &it ) const;
@@ -1045,9 +1075,10 @@ class npc : public Character
         healing_options has_healing_options();
         healing_options has_healing_options( healing_options try_to_fix );
         item &get_healing_item( healing_options try_to_fix, bool first_best = false );
-        bool has_painkiller();
+        bool has_painkiller() const;
         bool took_painkiller() const;
         void use_painkiller();
+        item *most_appropriate_painkiller();
         void activate_item( item &it );
         bool has_identified( const itype_id & ) const override {
             return true;
@@ -1246,7 +1277,15 @@ class npc : public Character
         bool drink_from_water_source( const tripoint_bub_ms &water_pos );
         bool consume_food_at( item_location loc );
         bool wear_item_at( item_location loc );
-        bool move_to_and_verify( const tripoint_bub_ms &target, bool no_bashing = false );
+        // one step of spec's walk; false when the NPC didn't move
+        // TODO: false also means a door was opened or a replacement trip needs judging;
+        // a moved/acted/reassess/blocked result would let callers tell them apart
+        bool move_to_and_verify( const npc_trip_spec &spec );
+        // nullopt when no end tile spec allows is reachable
+        std::optional<npc_trip> resolve_trip( const npc_trip_spec &spec ) const;
+        int trip_route_calls() const {
+            return ai_cache.trip_route_calls;
+        }
         npc_action address_player();
         npc_action long_term_goal_action();
         int evaluate_sleep_spot( tripoint_bub_ms p );
@@ -1319,6 +1358,8 @@ class npc : public Character
         const pathfinding_settings &get_pathfinding_settings() const override;
         const pathfinding_settings &get_pathfinding_settings( bool no_bashing ) const;
         std::function<bool( const tripoint_bub_ms & )> get_path_avoid() const override;
+        // get_path_avoid()'s rule for one tile; ignore_creatures skips only the occupant check
+        bool path_avoids( const tripoint_bub_ms &p, bool ignore_creatures ) const;
 
         // Item discovery and fetching
 
@@ -1481,10 +1522,14 @@ class npc : public Character
             return ai_cache.guard_pos;
         }
         const std::string &get_committed_goal() const {
-            return ai_cache.committed_goal;
+            return ai_cache.intention.goal;
         }
+        // tests only: commits without ending the old pursuit or recording an option
         void set_committed_goal( const std::string &goal ) {
-            ai_cache.committed_goal = goal;
+            ai_cache.intention = { goal, calendar::turn, {}, npc_permission::allowed };
+        }
+        const npc_intention &get_intention() const {
+            return ai_cache.intention;
         }
         // Clear the committed goal and any associated executor state
         // (plan + failed_targets + side effects like effect_lying_down).
@@ -1510,6 +1555,56 @@ class npc : public Character
         // Recompute the urgency score for an executor need using the
         // same oracle functions the BT's score predicates use.
         float current_need_urgency( need_goal_id id ) const;
+        const need_plan &plan_for( need_goal_id id ) const;
+        // call every turn an option is pursued; announces a new override
+        void record_selected_option( need_goal_id id, const npc_option_cost &cost );
+        // best water option for complaints; may differ from what the executor pursues
+        npc_need_view best_need_view( need_goal_id id );
+        // only outright allowed walk: needs never override here
+        bool may_walk_to( const npc_trip_spec &spec ) const;
+        // same for an activity that holds it here, such as a harvest
+        bool may_occupy_here() const;
+        // failed sleep search still holds; see arm_rest_cooldown()
+        bool rest_cooldown_active() const;
+        // what gets a settling NPC (lying down, not asleep yet) back up this turn, if anything
+        std::optional<npc_challenger> rest_interruption() const;
+        // each turn after npc_update_body(): gets a settler up, or records a new override
+        void review_rest();
+        // stop lying down without falling asleep
+        void stop_settling();
+        const npc_sleep_session &get_sleep_session() const {
+            return sleep_session;
+        }
+        // from lying_down effect: rolls on the settle cadence; true to stop lying down
+        bool sleep_settle_step();
+        bool sleep_stalled() const;
+        // rest cooldown or stay-awake grace holds sleep back
+        bool sleep_on_hold() const;
+        // woken by the player: a grace period, no rule change; false when narcosis keeps it under
+        bool wake_by_player();
+        void grant_stay_awake( const time_duration &dur, int sleepiness_floor );
+        void wake_up() override;
+        bool goal_is_idle( const std::string &goal ) const;
+        bool sees_hostile_within( int radius ) const;
+        std::optional<time_point> last_complaint( const std::string &issue ) const;
+        npc_interrupt_cost interrupt_cost( need_goal_id id ) const;
+        // also ends the lying down or activity the pursuit started
+        void end_need_pursuit( need_goal_id id );
+        // false while walking with the player
+        bool is_on_shift() const;
+        // on a belted seat or a bed of the vehicle the player sits in
+        bool in_vehicle_bed() const;
+        std::optional<npc_reach> obligation_reach() const;
+        npc_permission_verdict judge_option( const npc_option_cost &cost ) const;
+        npc_need_view need_view( need_goal_id id, const npc_option_cost &cost ) const;
+        // nullopt (unreachable) gives kind none
+        npc_need_view need_view( need_goal_id id, const std::optional<npc_option_cost> &cost ) const;
+        // with a reach the walk is routed and nullopt means no route; without one nothing
+        // is routed and nullopt only marks a stand_on spot nobody can stand on
+        std::optional<npc_option_cost> trip_cost( const npc_trip_spec &spec, bool responsive ) const;
+        std::optional<npc_option_cost> water_option_cost( const need_candidate &c ) const;
+        std::optional<npc_option_cost> rest_option_cost( const tripoint_abs_ms &spot ) const;
+        npc_option_cost rest_option_best_case() const;
 
         // Execute the concrete action for a needs-category goal.
         // Owns target selection and progress tracking.
@@ -1607,7 +1702,7 @@ class npc : public Character
         //Travel time for the current mission
         time_duration companion_mission_travel_time = 0_hours;
         //Inventory that is added and dropped on mission
-        inventory companion_mission_inv;
+        cata::colony<item> companion_mission_inv;
         npc_mission mission = NPC_MISSION_NULL;
         npc_mission previous_mission = NPC_MISSION_NULL;
         // Personality & other defining characteristics
@@ -1691,12 +1786,39 @@ class npc : public Character
         bool sees_dangerous_field( const tripoint_bub_ms &p ) const;
         bool could_move_onto( const tripoint_bub_ms &p ) const;
 
+        void adopt_goal( const std::string &goal );
+        // judges a running harvest or forage like a walk: ends it or announces an override
+        void review_self_care_activity();
+        void arm_rest_cooldown();
+        void explain_override( need_goal_id id );
+        npc_pursuit committed_pursuit() const;
+        std::optional<npc_option_cost> pursued_option_cost( need_goal_id id ) const;
+        bool complaint_due( const std::string &issue, const time_duration &dur ) const;
+
+        std::vector<tripoint_bub_ms> trip_interaction_tiles( const npc_trip_spec &spec,
+                const npc_reach_policy *policy ) const;
+        bool trip_endpoint_ok( const tripoint_bub_ms &p, const npc_reach_policy *policy ) const;
+        bool trip_step_ok( const tripoint_bub_ms &from, const tripoint_bub_ms &p, bool no_bashing,
+                           const npc_reach_policy *policy, bool ignore_occupant = false ) const;
+        std::optional<npc_reach_policy> reach_policy_for( const npc_trip_spec &spec ) const;
+        npc_trip route_trip( const npc_trip_spec &spec, const npc_reach_policy *policy ) const;
+
         std::vector<sphere> find_dangerous_explosives() const;
+
+        need_result settle_here();
+        bool try_fall_asleep_now();
+        void reconcile_sleep_session();
+        // comfort, less up to 5 for light above LIGHT_AMBIENT_LIT, which can wake a sleeper
+        int score_sleep_spot( const tripoint_bub_ms &p );
+        npc_sleep_session sleep_session;
 
         npc_companion_mission comp_mission;
 
         std::string unique_id;
 };
+
+// raw level a need must reach before the NPC acts on an option judged v
+float npc_need_floor( npc::need_goal_id id, const npc_permission_verdict &v );
 
 /** An NPC with standard stats */
 class standard_npc : public npc
@@ -1715,6 +1837,7 @@ class npc_template
         npc_template() = default;
 
         npc guy;
+        character_portrait_id unique_portrait_filename;
         dialogue_chatbin_snippets snippets;
         translation name_unique;
         translation name_suffix;

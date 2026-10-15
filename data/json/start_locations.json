@@ -69,6 +69,13 @@
   },
   {
     "type": "start_location",
+    "id": "sloc_ocean_shore",
+    "name": "Beach",
+    "terrain": [ "ocean_shore" ],
+    "flags": [ "ALLOW_OUTSIDE" ]
+  },
+  {
+    "type": "start_location",
     "id": "sloc_house",
     "name": "House",
     "terrain": [
@@ -341,14 +348,14 @@
   {
     "type": "start_location",
     "id": "sloc_lmoe",
-    "name": "LMOE shelter",
+    "name": "LMOE shelter (surface)",
     "terrain": [ "lmoe" ]
   },
   {
     "type": "start_location",
-    "id": "sloc_lmoe_empty",
+    "id": "sloc_lmoe_under",
     "name": "LMOE shelter (underground)",
-    "terrain": [ "lmoe_under_empty" ]
+    "terrain": [ "lmoe_under" ]
   },
   {
     "type": "start_location",

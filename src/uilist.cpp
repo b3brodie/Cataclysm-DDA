@@ -27,8 +27,6 @@
 
 #if defined(__ANDROID__)
 #include <jni.h>
-#include <SDL_keyboard.h>
-#include <SDL_mouse.h>
 #include "options.h"
 #endif
 
@@ -36,35 +34,10 @@
 #include "sdl_wrappers.h"
 #endif
 
-class uilist_impl : cataimgui::window
-{
-        uilist &parent;
-    public:
-        explicit uilist_impl( uilist &parent ) : cataimgui::window( "UILIST",
-                    ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-                    ImGuiWindowFlags_NoNavInputs ),
-            parent( parent ) {
-        }
-
-        uilist_impl( uilist &parent, const std::string &title ) : cataimgui::window( title,
-                    ImGuiWindowFlags_None | ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse |
-                    ImGuiWindowFlags_NoNavInputs ),
-            parent( parent ) {
-        }
-
-        cataimgui::bounds get_bounds() override {
-            if( !parent.started ) {
-                parent.setup();
-            }
-
-            return parent.desired_bounds.value_or( parent.calculated_bounds );
-        }
-        void draw_controls() override;
-};
-
 void uilist_impl::draw_controls()
 {
 #if defined(TILES)
+    hide_if_hidden();
     using cata::options::mouse;
     bool cursor_shown = IsCursorVisible();
     if( mouse.hidekb && !cursor_shown ) {
@@ -81,6 +54,7 @@ void uilist_impl::draw_controls()
     if( !parent.categories.empty() ) {
         if( ImGui::BeginTabBar( "##categories",
                                 ImGuiTabBarFlags_FittingPolicyScroll | ImGuiTabBarFlags_NoCloseWithMiddleMouseButton ) ) {
+            bool pending_switch = parent.switch_to_category < parent.categories.size();
             for( size_t i = 0; i < parent.categories.size(); i++ ) {
                 auto cat = parent.categories[ i ];
                 bool selected = i == parent.switch_to_category;
@@ -91,8 +65,10 @@ void uilist_impl::draw_controls()
                 }
                 if( ImGui::BeginTabItem( cat.second.c_str(), nullptr, flags ) ) {
                     if( parent.current_category != i ) {
-                        parent.current_category = i;
-                        parent.filterlist();
+                        if( !pending_switch ) {
+                            parent.current_category = i;
+                            parent.filterlist();
+                        }
                     }
                     ImGui::EndTabItem();
                 }
@@ -122,7 +98,8 @@ void uilist_impl::draw_controls()
 
         float entry_height = ImGui::GetTextLineHeightWithSpacing();
         ImGuiStyle &style = ImGui::GetStyle();
-        if( ImGui::BeginChild( "scroll", parent.calculated_menu_size ) ) {
+        if( ImGui::BeginChild( "scroll", parent.calculated_menu_size, ImGuiChildFlags_None,
+                               ImGuiWindowFlags_NoNavInputs ) ) {
             if( ImGui::BeginTable( "menu items", 3, ImGuiTableFlags_SizingFixedFit ) ) {
                 ImGui::TableSetupColumn( "hotkey", ImGuiTableColumnFlags_WidthFixed,
                                          parent.calculated_hotkey_width );
@@ -133,7 +110,7 @@ void uilist_impl::draw_controls()
 
                 ImGuiListClipper clipper;
                 clipper.Begin( parent.fentries.size(), entry_height );
-                clipper.IncludeRangeByIndices( parent.fselected, parent.fselected + 1 );
+                clipper.IncludeItemsByIndex( parent.fselected, parent.fselected + 1 );
                 while( clipper.Step() ) {
                     // It would be natural to make the entries into buttons, or
                     // combos, or other pre-built ui elements. For now I am mostly
@@ -151,7 +128,7 @@ void uilist_impl::draw_controls()
                             parent.need_to_scroll = false;
                         }
                         ImGuiSelectableFlags flags = ImGuiSelectableFlags_SpanAllColumns |
-                                                     ImGuiSelectableFlags_AllowItemOverlap;
+                                                     ImGuiSelectableFlags_AllowOverlap;
                         if( !entry.enabled ) {
                             flags |= ImGuiSelectableFlags_Disabled;
                         }
@@ -712,10 +689,14 @@ void uilist::calc_data()
     }
 
     float padding = 2.0f * s.CellPadding.x;
-    calculated_hotkey_width = ImGui::CalcTextSize( "M" ).x;
+    calculated_hotkey_width = 0.0;
     calculated_label_width = 0.0;
     calculated_secondary_width = 0.0;
     for( const uilist_entry &entry : entries ) {
+        if( entry.hotkey.has_value() ) {
+            calculated_hotkey_width = std::max( calculated_hotkey_width,
+                                                calc_size( entry.hotkey.value().short_description() ).x );
+        }
         calculated_label_width = std::max( calculated_label_width, calc_size( entry.txt ).x );
         calculated_secondary_width = std::max( calculated_secondary_width,
                                                calc_size( entry.ctxt ).x );
@@ -777,6 +758,10 @@ void uilist::calc_data()
         calculated_label_width = calculated_menu_size.x - calculated_hotkey_width - padding -
                                  calculated_secondary_width - padding - padding;
     }
+    if( force_desired_bounds && desired_bounds.has_value() ) {
+        calculated_menu_size.x = desired_bounds->w;
+        calculated_menu_size.y = desired_bounds->h;
+    }
 }
 
 void uilist::setup()
@@ -788,7 +773,6 @@ void uilist::setup()
     calc_data();
 
     started = true;
-    recalc_start = true;
 }
 
 void uilist::reposition()
@@ -886,6 +870,8 @@ bool uilist::scrollby( const uilist::scroll_amount scrollby )
             callback->select( this );
         }
     }
+
+    need_to_scroll = true;
     return true;
 }
 
@@ -937,8 +923,8 @@ bool uilist::query_setup()
             calc_data();
             started = true;
         }
-        JNIEnv *env = ( JNIEnv * )SDL_AndroidGetJNIEnv();
-        jobject activity = ( jobject )SDL_AndroidGetActivity();
+        JNIEnv *env = ( JNIEnv * )GetAndroidJNIEnv();
+        jobject activity = ( jobject )GetAndroidActivity();
         jclass clazz( env->GetObjectClass( activity ) );
         jmethodID get_nativeui_method_id = env->GetMethodID( clazz, "getNativeUI",
                                            "()Lcom/cleverraven/cataclysmdda/NativeUI;" );
@@ -1012,12 +998,10 @@ void uilist::query_once( input_context &ctxt, int timeout,
     const input_event event = ctxt.get_raw_input();
     ret_evt = event;
     const auto iter = keymap.find( ret_evt );
-    recalc_start = false;
 
-    if( scrollby( scroll_amount_from_action( ret_act ) ) ) {
-        need_to_scroll = true;
-        recalc_start = true;
-    } else if( filtering && ret_act == "UILIST.FILTER" ) {
+    scrollby( scroll_amount_from_action( ret_act ) );
+
+    if( filtering && ret_act == "UILIST.FILTER" ) {
         inputfilter();
     } else if( !categories.empty() && ( ret_act == "UILIST.LEFT" || ret_act == "UILIST.RIGHT" ) ) {
         switch_to_category = inc_clamp_wrap( current_category, ret_act == "UILIST.RIGHT",
@@ -1064,7 +1048,6 @@ void uilist::query_once( input_context &ctxt, int timeout,
         if( unhandled && allow_anykey ) {
             ret = UILIST_UNBOUND;
         } else if( unhandled && allow_additional ) {
-            recalc_start = true;
             for( const auto &it : additional_actions ) {
                 if( it.first == ret_act ) {
                     ret = UILIST_ADDITIONAL;
@@ -1076,6 +1059,17 @@ void uilist::query_once( input_context &ctxt, int timeout,
 }
 
 ///@}
+#if defined(TILES)
+void uilist::set_hide( bool val )
+{
+    create_or_get_ui()->hide_ui = val;
+}
+
+void uilist::hide_if_hidden()
+{
+    create_or_get_ui()->hide_if_hidden();
+}
+#endif
 /**
  * cleanup
  */
@@ -1160,6 +1154,7 @@ void uilist::set_category( const std::string &key )
         return pair.first == key;
     } );
     current_category = std::distance( categories.begin(), it );
+    switch_to_category = current_category;
 }
 
 void uilist::set_category_filter( const

@@ -22,11 +22,12 @@
 #include "point.h"
 #include "type_id.h"
 #include "units.h"
+#include "veh_utils.h"
 #include "vpart_position.h"
 
 class Character;
-class inventory;
 class map;
+class temp_crafting_inventory;
 class time_duration;
 class vpart_info;
 struct requirement_data;
@@ -95,8 +96,6 @@ class veh_interact
                 const part_selector &sel,
                 const std::string &title = std::string() );
 
-        static void do_change_shape_menu( vehicle_part &vp );
-
     private:
         explicit veh_interact( map &here, vehicle &veh, const point_rel_ms &p = point_rel_ms::zero );
         ~veh_interact();
@@ -163,7 +162,9 @@ class veh_interact
         std::unique_ptr<remove_info_t> remove_info;
 
         vehicle *veh;
-        const inventory *crafting_inv;
+        const temp_crafting_inventory *crafting_inv;
+        // install candidates for crafting_inv, refreshed with it; move_cursor filters them per tile
+        veh_utils::install_candidates install_options;
         input_context main_context;
 
         // maximum weight capacity of available lifting equipment (if any)
@@ -183,7 +184,6 @@ class veh_interact
         int part_at( const point_rel_ms &d );
         void move_cursor( map &here, const point_rel_ms &d, int dstart_at = 0 );
         task_reason cant_do( const map &here, vehicle_action mode );
-        bool can_potentially_install( const vpart_info &vpart );
         /** Move index (parameter pos) according to input action:
          * (up or down, single step or whole page).
          * @param pos index to change.
@@ -256,6 +256,9 @@ class veh_interact
 
             /** Writes any extra details for this entry */
             std::function<void( const vehicle_part &pt, const catacurses::window &w, int y )> details;
+
+            /** Number of additional rows past the title row that details writes. */
+            std::function<int( const vehicle_part &pt )> extra_rows;
 
             /** Writes to message window when part is selected */
             std::function<void( const vehicle_part &pt )> message;

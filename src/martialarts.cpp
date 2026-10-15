@@ -192,14 +192,16 @@ void ma_technique::finalize_all()
 
 // To avoid adding empty entries
 template <typename Container>
-void add_if_exists( const JsonObject &jo, Container &cont, bool was_loaded,
-                    const std::string &json_key, const typename Container::key_type &id )
+static void add_if_exists( const JsonObject &jo, Container &cont, bool was_loaded,
+                           const std::string &json_key, const typename Container::key_type &id )
 {
     if( jo.has_member( json_key ) ) {
         mandatory( jo, was_loaded, json_key, cont[id] );
     }
 }
 
+namespace
+{
 class ma_skill_reader : public generic_typed_reader<ma_skill_reader>
 {
     public:
@@ -230,15 +232,28 @@ class ma_weapon_damage_reader : public generic_typed_reader<ma_weapon_damage_rea
             } );
         }
 };
+} // namespace
 
 tech_effect_data load_tech_effect_data( const JsonObject &e )
 {
-    return tech_effect_data( efftype_id( e.get_string( "id" ) ), e.get_int( "duration", 0 ),
-                             e.get_bool( "permanent", false ), e.get_bool( "on_damage", true ),
-                             e.get_int( "chance", 100 ), e.get_string( "message", "" ),
-                             json_character_flag( e.get_string( "req_flag", "NULL" ) ) );
+    tech_effect_data ted;
+    // TODO: update to use optional()?
+    // Also duration as time unit instead of int?
+    ted.id = efftype_id( e.get_string( "id" ) );
+    ted.duration = e.get_int( "duration", 0 );
+    ted.permanent = e.get_bool( "permanent", false );
+    ted.on_damage = e.get_bool( "on_damage", true );
+    ted.chance = e.get_int( "chance", 100 );
+    ted.message = e.get_string( "message", "" );
+    if( e.has_member( "condition" ) ) {
+        read_condition( e, "condition", ted.condition, false );
+        ted.has_condition = true;
+    }
+    return ted;
 }
 
+namespace
+{
 class tech_effect_reader : public generic_typed_reader<tech_effect_reader>
 {
     public:
@@ -254,6 +269,7 @@ class tech_effect_reader : public generic_typed_reader<tech_effect_reader>
             } );
         }
 };
+} // namespace
 
 void ma_requirements::load( const JsonObject &jo, std::string_view )
 {
@@ -420,6 +436,8 @@ void martialart::finalize_all()
     martialarts.finalize();
 }
 
+namespace
+{
 class ma_buff_reader : public generic_typed_reader<ma_buff_reader>
 {
     public:
@@ -432,6 +450,7 @@ class ma_buff_reader : public generic_typed_reader<ma_buff_reader>
             return mabuff_id( jsobj.get_string( "id" ) );
         }
 };
+} // namespace
 
 void martialart::load( const JsonObject &jo, std::string_view src )
 {
@@ -611,6 +630,8 @@ void check_martialarts()
  * Note: this class must not contain any new members, it will be converted to a plain
  * effect_type later and that would slice the new members of.
  */
+namespace
+{
 class ma_buff_effect_type : public effect_type
 {
     public:
@@ -634,6 +655,7 @@ class ma_buff_effect_type : public effect_type
             apply_msgs.emplace_back( no_translation( "" ), m_good );
         }
 };
+} // namespace
 
 void finalize_martial_arts()
 {
@@ -2217,6 +2239,8 @@ std::string ma_technique::get_description() const
     return dump;
 }
 
+namespace
+{
 class ma_details_ui
 {
         friend class ma_details_ui_impl;
@@ -2542,6 +2566,7 @@ void ma_details_ui_impl::draw_controls()
 
     draw_ma_details_text();
 }
+} // namespace
 
 static void show_ma_details_ui( const matype_id &style_selected )
 {

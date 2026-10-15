@@ -91,6 +91,7 @@
 
 #ifdef TILES
 #include "cached_options.h"
+#include "cata_tiles.h"
 #endif // TILES
 
 enum class cube_direction : int;
@@ -218,7 +219,9 @@ void overmap_sidebar::draw_tile_info()
         }
 
         ImGui::SameLine();
-        overmap_buffer.display_description_at( sm_pos, true );
+        overmap_buffer.display_description_at( sm_pos, debug_mode );
+        ImGui::NewLine();
+
         if( center_vision != om_vision_level::full ) {
             std::string vision_level_string;
             switch( center_vision ) {
@@ -270,15 +273,17 @@ void overmap_sidebar::draw_tile_info()
 void overmap_sidebar::draw_settings_info()
 {
     print_hint( "TOGGLE_FAST_SCROLL", uistate.overmap_fast_scroll ? c_pink : c_magenta );
-    print_hint( "TOGGLE_FAST_TRAVEL", uistate.overmap_fast_travel ? c_pink : c_magenta );
+    print_hint( "TOGGLE_OVERMAP_ONLY_TRAVEL", uistate.overmap_only_auto_travel ? c_pink : c_magenta );
 }
 
 void overmap_sidebar::draw_quick_reference()
 {
     draw_sidebar_text( _( "Use movement keys to pan." ), c_magenta );
-    draw_sidebar_text( string_format( _( "Press %s to preview route." ),
+    draw_sidebar_text( string_format( _( "Press %s to preview efficient route." ),
                                       ictxt.get_desc( "CHOOSE_DESTINATION" ) ), c_magenta );
-    draw_sidebar_text( _( "Press again to confirm." ), c_magenta );
+    draw_sidebar_text( string_format( _( "Press %s to preview direct route." ),
+                                      ictxt.get_desc( "CHOOSE_DESTINATION_DIRECT" ) ), c_magenta );
+    draw_sidebar_text( _( "Press route button again to confirm." ), c_magenta );
     print_hint( "LEVEL_UP" );
     print_hint( "LEVEL_DOWN" );
     print_hint( "look" );
@@ -339,7 +344,7 @@ void overmap_sidebar::draw_debug()
     if( ( draw_data.debug_editor && center_vision != om_vision_level::unseen ) ||
         draw_data.debug_info ) {
         draw_sidebar_text( string_format( "current dimension: %s",
-                                          g->get_dimension_prefix().empty() ? "default" : g->get_dimension_prefix() ), c_white );
+                                          g->get_dimension_prefix().str() ), c_white );
         draw_sidebar_text( string_format( "abs_omt: %s", cursor_pos.to_string() ), c_white );
         const oter_t &oter = overmap_buffer.ter( cursor_pos ).obj();
         draw_sidebar_text( string_format( "oter: %s (rot %d)", oter.id.str(),
@@ -463,9 +468,10 @@ cataimgui::bounds overmap_sidebar::get_bounds()
     // old-school terminal emulation, even though the overmap tiles
     // are a different size entirely.
     float width = static_cast<float>( OVERMAP_LEGEND_WIDTH ) * character_cell_width;
-    return { viewport.x - width,
+    float window_x_position = viewport.x - width;
+    return { window_x_position,
              0,
-             viewport.x,
+             viewport.x - window_x_position,
              viewport.y
            };
 }
@@ -735,6 +741,8 @@ static void draw_camp_labels( const catacurses::window &w, const tripoint_abs_om
     }
 }
 
+namespace
+{
 class map_notes_callback : public uilist_callback
 {
     private:
@@ -830,6 +838,7 @@ class map_notes_callback : public uilist_callback
             ui.invalidate_ui();
         }
 };
+} // namespace
 
 static point_abs_omt draw_notes( const tripoint_abs_omt &origin )
 {
@@ -977,12 +986,12 @@ static void draw_ascii( const catacurses::window &w, overmap_draw_data_t &data )
 
     std::vector<std::pair<nc_color, std::string>> corner_text;
 
-    if( data.fast_traveling ) {
+    if( data.overmap_only_auto_travel ) {
         tripoint_abs_omt &next_path = player_character.omt_path.back();
         data.cursor_pos = next_path;
         oter_opts.center = next_path;
         blink = true;
-        corner_text.emplace_back( c_yellow, _( "FAST TRAVELING" ) );
+        corner_text.emplace_back( c_yellow, _( "AUTO TRAVELING" ) );
     }
     oter_opts.blink = blink;
 
@@ -1929,7 +1938,7 @@ static void modify_horde_func( tripoint_abs_omt &curs )
 }
 
 static std::vector<tripoint_abs_omt> get_overmap_path_to( const tripoint_abs_omt &dest,
-        bool driving )
+        bool driving, bool direct_travel = false )
 {
     if( overmap_buffer.seen( dest ) == om_vision_level::unseen ) {
         return {};
@@ -1975,6 +1984,10 @@ static std::vector<tripoint_abs_omt> get_overmap_path_to( const tripoint_abs_omt
             params.set_cost( oter_travel_cost_type::air, 8 );
         }
     }
+
+    if( direct_travel ) {
+        params = overmap_path_params::flatten_pathfinding_costs( params );
+    }
     // literal "edge" case: the vehicle may be in a different OMT than the player
     const tripoint_abs_omt start_omt_pos = driving ? player_veh->pos_abs_omt() : player_omt_pos;
     if( dest == player_omt_pos || dest == start_omt_pos ) {
@@ -1987,8 +2000,13 @@ static std::vector<tripoint_abs_omt> get_overmap_path_to( const tripoint_abs_omt
 static bool try_travel_to_destination( avatar &player_character, const tripoint_abs_omt curs,
                                        const tripoint_abs_omt dest, const bool driving )
 {
-    std::vector<tripoint_abs_omt> path = get_overmap_path_to( dest, driving );
+    std::vector<tripoint_abs_omt> path = player_character.omt_path;
+    // No existing path or path does not contain our destination, get a new one!
+    if( path.empty() || std::find( path.begin(), path.end(), dest ) == path.end() ) {
+        path = get_overmap_path_to( dest, driving );
+    }
 
+    // Still empty, we just don't know how to get there.
     if( path.empty() ) {
         std::string popupmsg;
         if( dest.z() == player_character.posz() ) {
@@ -2051,6 +2069,24 @@ static bool try_travel_to_destination( avatar &player_character, const tripoint_
     return false;
 }
 
+bool map_redraw_needed( const std::string &action, const map_view_state &drawn,
+                        const map_view_state &now, const bool animated_tiles )
+{
+    return action != "TIMEOUT" || animated_tiles || drawn.cursor != now.cursor ||
+           drawn.show_overlays != now.show_overlays;
+}
+
+// animated overmap tiles cycle frames by wall clock, so every pass draws
+static bool overmap_tiles_animated()
+{
+#if defined(TILES)
+    return use_tiles && use_tiles_overmap && overmap_tilecontext &&
+           overmap_tilecontext->has_animated_tiles();
+#else
+    return false;
+#endif
+}
+
 static tripoint_abs_omt display()
 {
     // HACK: Remove saved land use code uistate for people who might have accidentally turned it on previously, before it was debug-only
@@ -2111,6 +2147,7 @@ static tripoint_abs_omt display()
     ictxt.register_action( "MOUSE_MOVE" );
     ictxt.register_action( "SELECT" );
     ictxt.register_action( "CHOOSE_DESTINATION" );
+    ictxt.register_action( "CHOOSE_DESTINATION_DIRECT" );
     ictxt.register_action( "CENTER_ON_DESTINATION" );
     ictxt.register_action( "GO_TO_DESTINATION" );
 
@@ -2165,9 +2202,15 @@ static tripoint_abs_omt display()
         draw( g->overmap_data );
     } );
 
+    bool map_dirty = true;
     do {
-        ui->invalidate_ui();
+        if( map_dirty ) {
+            ui->invalidate_ui();
+        }
         ui_manager::redraw();
+        const map_view_state drawn{ curs, uistate.overmap_show_overlays };
+        // a pass that leaves through `continue` redraws the map next time
+        map_dirty = true;
 #if (defined TILES || defined _WIN32 || defined WINDOWS )
         int scroll_timeout = get_option<int>( "EDGE_SCROLL" );
         // If EDGE_SCROLL is disabled, it will have a value of -1.
@@ -2276,7 +2319,7 @@ static tripoint_abs_omt display()
                 if( try_travel_to_destination( player_character, curs, player_character.omt_path.front(),
                                                driving ) ) {
                     action = "QUIT";
-                    if( uistate.overmap_fast_travel ) {
+                    if( uistate.overmap_only_auto_travel ) {
                         keep_overmap_ui = true;
                     }
                 }
@@ -2288,10 +2331,11 @@ static tripoint_abs_omt display()
                 curs.x() = p.x();
                 curs.y() = p.y();
             }
-        } else if( action == "CHOOSE_DESTINATION" ) {
+        } else if( action == "CHOOSE_DESTINATION" || action == "CHOOSE_DESTINATION_DIRECT" ) {
             avatar &player_character = get_avatar();
             const bool driving = player_character.in_vehicle && player_character.controlling_vehicle;
-            std::vector<tripoint_abs_omt> path = get_overmap_path_to( curs, driving );
+            bool direct = action == "CHOOSE_DESTINATION_DIRECT";
+            std::vector<tripoint_abs_omt> path = get_overmap_path_to( curs, driving, direct );
             bool same_path_selected = false;
             if( path == player_character.omt_path ) {
                 same_path_selected = true;
@@ -2301,7 +2345,7 @@ static tripoint_abs_omt display()
             if( same_path_selected && !player_character.omt_path.empty() ) {
                 if( try_travel_to_destination( player_character, curs, curs, driving ) ) {
                     action = "QUIT";
-                    if( uistate.overmap_fast_travel ) {
+                    if( uistate.overmap_only_auto_travel ) {
                         keep_overmap_ui = true;
                     }
                 }
@@ -2345,7 +2389,7 @@ static tripoint_abs_omt display()
         } else if( action == "TOGGLE_FOREST_TRAILS" ) {
             uistate.overmap_show_forest_trails = !uistate.overmap_show_forest_trails;
         } else if( action == "TOGGLE_FAST_TRAVEL" ) {
-            uistate.overmap_fast_travel = !uistate.overmap_fast_travel;
+            uistate.overmap_only_auto_travel = !uistate.overmap_only_auto_travel;
         } else if( action == "SEARCH" ) {
             if( !search( *ui, curs, orig ) ) {
                 continue;
@@ -2379,11 +2423,14 @@ static tripoint_abs_omt display()
             }
             last_blink = now;
         }
+        map_dirty = map_redraw_needed( action, drawn,
+                                       map_view_state{ curs, uistate.overmap_show_overlays },
+                                       overmap_tiles_animated() );
     } while( action != "QUIT" && action != "CONFIRM" );
     if( !keep_overmap_ui ) {
         ui::omap::force_quit();
     } else {
-        data.fast_traveling = true;
+        data.overmap_only_auto_travel = true;
     }
     if( overmap_buffer.distance_limit( g->overmap_data.distance, g->overmap_data.origin_pos, ret ) ) {
         return ret;
@@ -2394,12 +2441,15 @@ static tripoint_abs_omt display()
 
 } // namespace overmap_ui
 
+namespace
+{
 struct blended_omt {
     oter_id id;
     std::string sym;
     nc_color color;
     std::string name;
 };
+} // namespace
 
 oter_vision::blended_omt oter_vision::get_blended_omt_info( const tripoint_abs_omt &omp,
         om_vision_level vision )
@@ -2511,7 +2561,7 @@ std::pair<std::string, nc_color> oter_symbol_and_color( const tripoint_abs_omt &
     oter_id cur_ter = oter_str_id::NULL_ID();
     avatar &player_character = get_avatar();
     std::vector<point_abs_omt> plist;
-    const bool blink = opts.blink || g->overmap_data.fast_traveling;
+    const bool blink = opts.blink || g->overmap_data.overmap_only_auto_travel;
 
     if( blink && !opts.mission_inbounds && opts.mission_target ) {
         plist = line_to( opts.center.xy(), opts.mission_target->xy() );
@@ -2908,6 +2958,6 @@ void ui::omap::path_mark(
 void ui::omap::force_quit()
 {
     overmap_ui::generated_omts.clear();
-    g->overmap_data.ui.reset();
-    g->overmap_data.fast_traveling = false;
+    g->overmap_data.ui = nullptr;
+    g->overmap_data.overmap_only_auto_travel = false;
 }

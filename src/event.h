@@ -42,6 +42,7 @@ enum class event_type : int {
     character_consumes_item,
     character_dies,
     character_eats_item,
+    character_effect_intensity_changed,
     character_finished_activity,
     character_forgets_spell,
     character_gains_effect,
@@ -198,7 +199,7 @@ struct event_spec_character_item {
 // NOTE: Events are saved to the character file for later memorializing them. It's currently unsafe to ever remove any of these.
 // Removal will cause any save file with one of the saved events to be unable to load.
 // FIXME.
-static_assert( static_cast<int>( event_type::num_event_types ) == 109,
+static_assert( static_cast<int>( event_type::num_event_types ) == 110,
                "This static_assert is to remind you to add a specialization for your new "
                "event_type below" );
 
@@ -357,6 +358,17 @@ struct event_spec<event_type::character_gains_effect> {
 };
 
 template<>
+struct event_spec<event_type::character_effect_intensity_changed> {
+    static constexpr std::array<event_field, 4> fields = {{
+            { "character", cata_variant_type::character_id },
+            { "bodypart", cata_variant_type::body_part },
+            { "effect", cata_variant_type::efftype_id },
+            { "intensity", cata_variant_type::int_ }
+        }
+    };
+};
+
+template<>
 struct event_spec<event_type::character_gets_headshot> : event_spec_character {};
 
 template<>
@@ -380,10 +392,11 @@ struct event_spec<event_type::character_kills_monster> {
 
 template<>
 struct event_spec<event_type::character_kills_character> {
-    static constexpr std::array<event_field, 3> fields = {{
+    static constexpr std::array<event_field, 4> fields = {{
             { "killer", cata_variant_type::character_id },
             { "victim", cata_variant_type::character_id },
             { "victim_name", cata_variant_type::string },
+            { "victim_class", cata_variant_type::string },
         }
     };
 };
@@ -620,8 +633,8 @@ template<>
 struct event_spec<event_type::dimension_travel> {
     static constexpr std::array<event_field, 3> fields = {{
             { "character", cata_variant_type::character_id },
-            { "from_dimension", cata_variant_type::string },
-            { "to_dimension", cata_variant_type::string },
+            { "from_dimension", cata_variant_type::dimension_id },
+            { "to_dimension", cata_variant_type::dimension_id },
         }
     };
 };

@@ -1,6 +1,19 @@
 [
   {
     "type": "effect_type",
+    "id": "ozmas_peace",
+    "name": [ { "str": "A desolation called Peace" } ],
+    "desc": [ { "str": "Ubi solitudinem faciunt, pacem appelant", "//~": "NO_I18N" } ],
+    "apply_message": "A deep and abiding calm settles upon you.",
+    "remove_message": "The Pax is no more.",
+    "base_mods": { "hit_mod": [ -20 ], "bash_mod": [ -20 ] },
+    "max_duration": "30 m",
+    "max_intensity": 5,
+    "int_dur_factor": "5 s",
+    "miss_messages": [ [ "Peace be upon thee, whether you want it or not.", 1 ] ]
+  },
+  {
+    "type": "effect_type",
     "id": "curevamp",
     "removes_effects": [ "vampire_virus" ],
     "max_duration": "72 h"
@@ -171,7 +184,22 @@
     "rating": "mixed",
     "max_duration": "30 m",
     "base_mods": { "per_mod": [ 6 ], "dex_mod": [ -2 ], "speed_mod": [ -5 ] },
+    "flags": [ "HUNGER_DISRUPTION", "TRUE_SEEING" ],
     "blood_analysis_description": "Cross-dimensional narcotic, unexpected physics encountered"
+  },
+  {
+    "type": "effect_type",
+    "id": "elf-addled",
+    "//": "Should make the player have better perception with a worse dex but should be offset if taken with consumables that grant altered_physics.",
+    "name": [ "ælfadl" ],
+    "desc": [ "The world was much more beautiful when you were closer to the Underhill." ],
+    "apply_message": "The world becomes a duller place.  Do you even care if you live or die if it is in this place?",
+    "remove_message": "The colors brighten and your vision sharpens.",
+    "rating": "bad",
+    "max_duration": "24 hours",
+    "base_mods": { "per_mod": [ -1 ], "speed_mod": [ -5 ] },
+    "flags": [ "HUNGER_DISRUPTION", "TRUE_SEEING" ],
+    "blood_analysis_description": "Anemia of the soul."
   },
   {
     "type": "effect_type",
@@ -208,6 +236,21 @@
     "enchantments": [ { "values": [ { "value": "LUMINATION", "add": { "math": [ "u_effect_intensity('foxfire_imbibed') * 50" ] } } ] } ],
     "base_mods": { "per_mod": [ -1 ], "dex_mod": [ -1 ] },
     "scaling_mods": { "per_mod": [ -1 ], "dex_mod": [ -1 ] }
+  },
+  {
+    "type": "effect_type",
+    "id": "minoan_orchid_effect",
+    "name": [ "Minoan Joy", "Minoan Delight", "Minoan Elation", "Minoan Euphoria", "Minoan Rapture", "Minoan Ecstasy" ],
+    "desc": [
+      "The effect of the opioids in your system are increased.",
+      "As you consume more opioids your mood increases even more.",
+      "The combination of these drugs is clearly dangerously euphoric.",
+      "Your body is pairing endorphins and dopamine across every pathway.",
+      "Are you dead?  Is this heaven?",
+      "…………………………………………………………………"
+    ],
+    "rating": "neutral",
+    "max_intensity": 6
   },
   {
     "type": "effect_type",
@@ -269,8 +312,13 @@
     "type": "effect_type",
     "id": "hallu",
     "max_duration": "6 h",
+    "limb_score_mods": [
+      { "limb_score": "reaction", "modifier": 0.8, "scaling": -0.2 },
+      { "limb_score": "block", "modifier": 0.8, "scaling": -0.2 }
+    ],
     "resist_effects": [ "relative_physics" ],
-    "blood_analysis_description": "Hallucinations"
+    "blood_analysis_description": "Hallucinations",
+    "flags": [ "EFFECT_LIMB_SCORE_MOD" ]
   },
   {
     "type": "effect_type",
@@ -445,6 +493,30 @@
     "dur_add_perc": 25
   },
   {
+    "id": "arion_blood_drank",
+    "type": "effect_type",
+    "name": [ "Drank blood" ],
+    "desc": [ "The hungry Arion has drunk blood and is now visibly regenerating." ],
+    "rating": "good",
+    "show_in_info": true
+  },
+  {
+    "id": "effect_feed_the_black_horse",
+    "type": "effect_type",
+    "name": [ "Feed Arion" ],
+    "desc": [ "It's time to feed Arion.  If you do not there will be consequences." ],
+    "rating": "bad",
+    "show_in_info": true
+  },
+  {
+    "id": "effect_fed_the_black_horse",
+    "type": "effect_type",
+    "name": [ "Fed Arion" ],
+    "desc": [ "You have fed Arion and it shall not devolve for a while." ],
+    "rating": "good",
+    "show_in_info": true
+  },
+  {
     "type": "effect_type",
     "id": "vampire_virus",
     "name": [ "Wan", "Reddened Eyes", "Bloodthirst" ],
@@ -454,7 +526,10 @@
       "Your skin is pale and your eyes have turned dark red.  You feel a constant hunger, like the food you eat is no longer nourishing you."
     ],
     "apply_message": [
-      [ "You feel the blood rushing from the wound and then a pressure that reminds you of backwash.", "bad" ],
+      [
+        "You feel the blood rushing from the wound and then a pressure that reminds you of backwash as a liquid that feels heavier than normal blood is forced through the wound into your body.",
+        "bad"
+      ],
       [ "Your iris slowly turns red from the outside in.", "bad" ],
       [ "There is an emptiness in your stomach and soul that can no longer be filled with mortal joys.", "bad" ]
     ],
@@ -625,7 +700,8 @@
     "id": "effect_dhampir_the_blood_is_the_life",
     "//": "Hidden--prevents gaining blood when using The Blood is the Life",
     "name": [ "" ],
-    "desc": [ "" ]
+    "desc": [ "" ],
+    "flags": [ "HUNGER_DISRUPTION" ]
   },
   {
     "type": "effect_type",
@@ -1736,10 +1812,9 @@
           { "type": "cut", "multiply": -0.3 },
           { "type": "bullet", "multiply": -0.3 }
         ],
-        "values": [ { "value": "MOVE_COST", "multiply": 0.1 } ]
+        "values": [ { "value": "MOVE_COST", "multiply": 0.1 }, { "value": "BLEEDING_RATE", "multiply": -0.333 } ]
       }
-    ],
-    "flags": [ "BLEEDSLOW1" ]
+    ]
   },
   {
     "type": "effect_type",
@@ -1830,6 +1905,14 @@
     "name": [ "Transferred Essence" ],
     "desc": [
       "You have transferred your essence into a human, saving yourself at the expense of their being.  It will take some time until you can do this again."
+    ]
+  },
+  {
+    "type": "effect_type",
+    "id": "effect_homullus_rebuilt_minds",
+    "name": [ "Rebuilt Minds" ],
+    "desc": [
+      "You have rebuilt human minds from the shattered remnants you could find.  It will take some time until you can do this again."
     ]
   },
   {
@@ -2165,7 +2248,7 @@
     "remove_message": "Your body regains its solidity.",
     "rating": "good",
     "enchantments": [ { "values": [ { "value": "MOVE_COST", "multiply": -0.8 }, { "value": "EVASION", "add": 1 } ] } ],
-    "flags": [ "ETHEREAL", "INVISIBLE", "LEVITATION", "CLIMB_FLYING", "INHALED_TOXIN_IMMUNE", "MYCUS_IMMUNE" ]
+    "flags": [ "ETHEREAL", "INVISIBLE", "LEVITATION", "CLIMB_FLYING", "DISTRIBUTED_DAMAGE", "INHALED_TOXIN_IMMUNE", "MYCUS_IMMUNE" ]
   },
   {
     "type": "effect_type",
@@ -2930,40 +3013,48 @@
         "values": [
           {
             "value": "DODGE_CHANCE",
-            "add": { "math": [ "1 + ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.08) + (u_skill('deduction') * 0.25) )" ] }
+            "add": { "math": [ "1 + ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.08) + (u_skill('gramarye') * 0.25) )" ] }
           },
           {
             "value": "BONUS_DODGE",
-            "add": { "math": [ "1 + ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.05) + (u_skill('deduction') * 0.2) )" ] }
+            "add": { "math": [ "1 + ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.05) + (u_skill('gramarye') * 0.2) )" ] }
           },
           {
             "value": "THROW_STR",
-            "add": { "math": [ "1 + ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.07) + (u_skill('deduction') * 0.35) )" ] }
+            "add": { "math": [ "1 + ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.07) + (u_skill('gramarye') * 0.35) )" ] }
           },
           {
             "value": "RANGE_DODGE",
             "add": {
               "math": [
-                "min( (0.33 + ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.005) + (u_skill('deduction') * 0.02) )), 0.98)"
+                "min( (0.33 + ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.005) + (u_skill('gramarye') * 0.02) )), 0.98)"
               ]
             }
           },
           {
             "value": "MOVE_COST",
             "multiply": {
-              "math": [ "-0.1 - ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.0015) - (u_skill('deduction') * 0.015) )" ]
+              "math": [ "-0.1 - ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.0015) - (u_skill('gramarye') * 0.015) )" ]
             }
           },
           {
             "value": "ATTACK_SPEED",
             "multiply": {
-              "math": [ "-0.1 - ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.0015) - (u_skill('deduction') * 0.015) )" ]
+              "math": [ "-0.1 - ( (u_sum_traits_of_category_char_has('FAIR_FOLK_NOBLE') * 0.0015) - (u_skill('gramarye') * 0.015) )" ]
             }
           }
         ]
       }
     ],
     "flags": [ "CLIMB_NO_LADDER", "FEATHER_FALL" ]
+  },
+  {
+    "type": "effect_type",
+    "id": "effect_changeling_temporary_psychopath",
+    "name": [ "Arbiter Mundi" ],
+    "desc": [ "Yours is the right to rule." ],
+    "rating": "mixed",
+    "flags": [ "PSYCHOPATH" ]
   },
   {
     "type": "effect_type",
@@ -3176,6 +3267,14 @@
   },
   {
     "type": "effect_type",
+    "id": "effect_lilin_resist_infections",
+    "name": [ "Make Thy Plagues Wonderful" ],
+    "desc": [ "You are immune to minor diseases and any infections you have are recovering more easily." ],
+    "removes_effects": [ "common_cold", "pre_common_cold", "flu", "pre_flu" ],
+    "flags": [ "PAUSE_INFECTIONS", "INFECTION_RECOVERY" ]
+  },
+  {
+    "type": "effect_type",
     "id": "effect_lilin_attack_warning_cooldown",
     "//": "Hidden effect, used as a blocker",
     "name": [ "" ],
@@ -3298,7 +3397,7 @@
       { "limb_score": "block", "modifier": 1.0, "scaling": -0.035 },
       { "limb_score": "vision", "modifier": 1.0, "scaling": -0.035 }
     ],
-    "flags": [ "EFFECT_LIMB_SCORE_MOD" ]
+    "flags": [ "EFFECT_LIMB_SCORE_MOD", "PSYCHOPATH" ]
   },
   {
     "type": "effect_type",
@@ -3358,12 +3457,15 @@
     "enchantments": [
       {
         "values": [
-          { "value": "MOVE_COST", "multiply": -0.5 },
           { "value": "ATTACK_SPEED", "multiply": -0.66 },
           { "value": "BONUS_DODGE", "add": 1 },
           { "value": "DODGE_CHANCE", "add": { "math": [ "2 + (u_has_trait('THRESH_LILIN') * 2)" ] } },
           { "value": "RANGE_DODGE", "add": { "math": [ "0.25 + (u_has_trait('THRESH_LILIN') * 0.25)" ] } }
         ]
+      },
+      {
+        "condition": { "not": { "u_has_trait": "TURN_INTO_OWL_TRAITS" } },
+        "values": [ { "value": "MOVE_COST", "multiply": -0.5 } ]
       }
     ]
   },
@@ -3853,8 +3955,8 @@
     "max_intensity": 5,
     "apply_message": "You want to sink your fangs in someone's neck and drink their blood.",
     "miss_messages": [ [ "Your thirst distract you.", 1 ] ],
-    "base_mods": { "sleep_chance": [ -1003 ], "sleep_min": [ 15000 ], "sleep_max": [ 21000 ] },
-    "scaling_mods": { "per_mod": [ -0.5 ], "dex_mod": [ -0.5 ], "int_mod": [ -0.75 ], "sleep_chance": [ 501 ] },
+    "base_mods": { "per_mod": [ -1 ], "dex_mod": [ -1 ], "int_mod": [ -1.5 ] },
+    "scaling_mods": { "per_mod": [ -0.5 ], "dex_mod": [ -0.5 ], "int_mod": [ -0.75 ] },
     "limb_score_mods": [
       { "limb_score": "manip", "modifier": 1.0, "scaling": -0.1 },
       { "limb_score": "block", "modifier": 1.0, "scaling": -0.1 },
@@ -4240,7 +4342,9 @@
     "type": "effect_type",
     "id": "effect_werewolf_gain_more_powers",
     "name": [ "Gifts of the Moon" ],
-    "desc": [ "You can unlock a new Lunar Gift.  Do so at night under the moon." ]
+    "desc": [ "You can unlock a new Lunar Gift.  Do so at night under the moon." ],
+    "apply_message": "You are ready for a new gift of the moon.",
+    "rating": "good"
   },
   {
     "type": "effect_type",
@@ -4341,6 +4445,14 @@
   },
   {
     "type": "effect_type",
+    "id": "effect_follower_summoned_dross",
+    "name": [ "Recently created dreamdross" ],
+    "desc": [
+      "This person has recently gave you dreamdross.  It will take some time before they gather an usable amount of dross again."
+    ]
+  },
+  {
+    "type": "effect_type",
     "id": "march_baron",
     "name": [ "March Baron" ],
     "//": "Used to target a slightly different winning screen upon exiting the mortal realms as a Lord in Boann's court."
@@ -4408,5 +4520,14 @@
     ],
     "max_intensity": 10,
     "rating": "mixed"
+  },
+  {
+    "type": "effect_type",
+    "id": "effect_withering_healing_down",
+    "name": [ "Withered" ],
+    "desc": [ { "str": "You feel strangely enervated." } ],
+    "rating": "bad",
+    "show_in_info": true,
+    "enchantments": [ { "values": [ { "value": "REGEN_HP", "multiply": -0.5 } ] } ]
   }
 ]

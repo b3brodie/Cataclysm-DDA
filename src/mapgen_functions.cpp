@@ -63,6 +63,7 @@ static const ter_str_id ter_t_railroad_tie_d( "t_railroad_tie_d" );
 static const ter_str_id ter_t_railroad_track( "t_railroad_track" );
 static const ter_str_id ter_t_railroad_track_d( "t_railroad_track_d" );
 static const ter_str_id ter_t_railroad_track_on_tie( "t_railroad_track_on_tie" );
+static const ter_str_id ter_t_region_groundcover_ravine( "t_region_groundcover_ravine" );
 static const ter_str_id ter_t_rock( "t_rock" );
 static const ter_str_id ter_t_rock_floor( "t_rock_floor" );
 static const ter_str_id ter_t_sand( "t_sand" );
@@ -72,6 +73,7 @@ static const ter_str_id ter_t_swater_surf( "t_swater_surf" );
 static const ter_str_id ter_t_water_dp( "t_water_dp" );
 static const ter_str_id ter_t_water_moving_dp( "t_water_moving_dp" );
 static const ter_str_id ter_t_water_moving_sh( "t_water_moving_sh" );
+
 static const ter_str_id ter_t_water_sh( "t_water_sh" );
 
 static const vspawn_id VehicleSpawn_default_subway_deadend( "default_subway_deadend" );
@@ -127,7 +129,7 @@ int terrain_type_to_nesw_array( oter_id terrain_type, std::array<bool, 4> &array
 
 // perform dist counterclockwise rotations on a nesw or neswx array
 template<typename T, size_t N>
-void nesw_array_rotate( std::array<T, N> &array, size_t dist )
+static void nesw_array_rotate( std::array<T, N> &array, size_t dist )
 {
     static_assert( N == 8 || N == 4, "Only arrays of size 4 and 8 are supported" );
     if( N == 4 ) {
@@ -2186,7 +2188,7 @@ void mapgen_ravine_edge( mapgendata &dat )
     // The placed t_null terrains are converted into the regional groundcover in the ravine's bottom level,
     // in the other levels they are converted into open air to generate the cliffside.
     if( dat.zlevel() == settings_ravine.ravine_depth ) {
-        m->translate( ter_str_id::NULL_ID(), dat.groundcover() );
+        m->translate( ter_str_id::NULL_ID(), ter_t_region_groundcover_ravine );
     } else {
         m->translate( ter_str_id::NULL_ID(), ter_t_open_air );
     }
@@ -2235,12 +2237,12 @@ void mremove_fields( map *m, const tripoint_bub_ms &p )
     m->clear_fields( p );
 }
 
-void resolve_regional_terrain_and_furniture( const mapgendata &dat )
+void resolve_regional_terrain_and_furniture( const mapgendata &dat, int z_offset /*= 0*/ )
 {
     if( dat.region.id.is_valid() ) {
         const region_settings_terrain_furniture &settings_terfurn =
             dat.region.get_settings_terrain_furniture();
-        for( const tripoint_bub_ms &p : dat.m.points_on_zlevel() ) {
+        for( const tripoint_bub_ms &p : dat.m.points_on_zlevel( dat.m.get_abs_sub().z() + z_offset ) ) {
             const ter_id &tid_before = dat.m.ter( p );
             if( !tid_before.id().is_null() && tid_before->has_flag( ter_furn_flag::TFLAG_REGION_PSEUDO ) ) {
                 const ter_id &tid_after = settings_terfurn.resolve( tid_before );

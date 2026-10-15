@@ -5,7 +5,7 @@
 #include "input_enums.h"
 #include "sdl_wrappers.h"
 
-#define SDL_GAMEPAD_SCHEDULER (SDL_USEREVENT+1)
+#define SDL_GAMEPAD_SCHEDULER (SDL_EVENT_USER+1)
 
 struct tripoint;
 
