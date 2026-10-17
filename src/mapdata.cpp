@@ -827,10 +827,8 @@ std::vector<std::string> ter_t::extended_description() const
 {
     std::vector<std::string> ret;
 
-    if( debug_mode ) {
-        ret.emplace_back( get_origin( src ) );
-        ret.emplace_back( "--" );
-    }
+    ret.emplace_back( get_origin( src ) );
+    ret.emplace_back( "--" );
 
     std::vector<std::string> tmp = map_data_common_t::extended_description();
     ret.insert( ret.end(), tmp.begin(), tmp.end() );
@@ -857,10 +855,8 @@ std::vector<std::string> furn_t::extended_description() const
 {
     std::vector<std::string> ret;
 
-    if( debug_mode ) {
-        ret.emplace_back( get_origin( src ) );
-        ret.emplace_back( "--" );
-    }
+    ret.emplace_back( get_origin( src ) );
+    ret.emplace_back( "--" );
 
     std::vector<std::string> tmp = map_data_common_t::extended_description();
     ret.insert( ret.end(), tmp.begin(), tmp.end() );
