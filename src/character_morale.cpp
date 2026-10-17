@@ -180,18 +180,19 @@ int Character::get_trauma() const
 
 void Character::mod_trauma( int amt )
 {
-    trauma_counter += amt;
+    // trauma_counter += amt;
     clamp_trauma();
 }
 
 void Character::set_trauma( int amt )
 {
-    trauma_counter = amt;
+    // trauma_counter = amt;
     clamp_trauma();
 }
 
 double Character::get_modifier_for_ALL_morale() const
 {
+    return 1.0;
     if( has_flag( json_flag_NUMB ) ) {
         return 0.0; // I just don't care about anything anymore... (medical mutant)
     }
